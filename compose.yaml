@@ -1,0 +1,40 @@
+services:
+  frontend:
+    build:
+      context: ../tactica_ai_frontend/frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@database:5432/tactica_ai
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: tactica_ai
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tactica_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
