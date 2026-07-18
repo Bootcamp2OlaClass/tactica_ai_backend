@@ -105,7 +105,7 @@ def test_failed_connectivity_validation_is_safe(monkeypatch, caplog):
     password = "database-password-must-not-leak"
     database_url = (
         "postgresql+psycopg2://test_user:"
-        f"{password}@localhost:5432/test_database"
+        f"{password}@localhost:5435/test_database"
     )
     monkeypatch.setenv("DATABASE_PASSWORD", password)
     monkeypatch.setenv("DATABASE_URL", database_url)

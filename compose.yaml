@@ -1,6 +1,32 @@
 services:
+  frontend:
+    build:
+      context: ../tactica_ai_frontend/frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: "5435"
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_URL: postgresql+psycopg2://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5435/${DATABASE_NAME}
+    depends_on:
+      db:
+        condition: service_healthy
+
   db:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: ${DATABASE_NAME}
       POSTGRES_USER: ${DATABASE_USER}
@@ -10,7 +36,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test:
+        - CMD-SHELL
+        - pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}
       interval: 5s
       timeout: 5s
       retries: 5
