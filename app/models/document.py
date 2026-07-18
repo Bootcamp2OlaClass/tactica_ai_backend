@@ -7,9 +7,7 @@ from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-
-if TYPE_CHECKING:
-    from app.models.course import Course
+from app.models.course import Course
 
 class DocumentStatus(str, Enum):
     PENDING = "pending"
