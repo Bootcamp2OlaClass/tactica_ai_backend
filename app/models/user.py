@@ -5,7 +5,10 @@ from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
-from app.models.course import Course
+
+if TYPE_CHECKING:
+    from app.models.course import Course
+    from app.models.semester import Semester
 
 class User(Base):
     __tablename__ = "users"
@@ -44,4 +47,8 @@ class User(Base):
     #User.courses ↔ Course.user
     courses: Mapped[list["Course"]] = relationship(
         back_populates = "user"
+    )
+    
+    semesters: Mapped[list["Semester"]] = relationship(
+        back_populates="user"
     )

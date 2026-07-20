@@ -6,9 +6,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-from app.models.document import Document
-from app.models.task import Task
-from app.models.user import User
+if TYPE_CHECKING:
+    from app.models.document import Document
+    from app.models.semester import Semester
+    from app.models.task import Task
+    from app.models.user import User
 
 class Course(Base):
     __tablename__ = "courses"
@@ -62,3 +64,6 @@ class Course(Base):
         back_populates = "courses"
     )
     
+    semester: Mapped["Semester"] = relationship(
+        back_populates="courses"
+    )
