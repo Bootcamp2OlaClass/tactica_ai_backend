@@ -23,6 +23,7 @@ def load_test_app(monkeypatch, tmp_path):
 
     importlib.reload(logging_config)
     main = importlib.reload(main)
+    monkeypatch.setattr(main, "validate_database_connection", lambda: True)
     return main.app
 
 
