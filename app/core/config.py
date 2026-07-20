@@ -21,6 +21,7 @@ class Settings:
     database_user: str
     database_password: str = field(repr=False)
     database_url: str = field(repr=False)
+    JWT_SECRET: str = field(repr=False)
 
 
 def _required_environment_value(name: str) -> str:
@@ -38,6 +39,7 @@ def load_settings() -> Settings:
     database_user = _required_environment_value("DATABASE_USER").strip()
     database_password = _required_environment_value("DATABASE_PASSWORD")
     database_url = _required_environment_value("DATABASE_URL")
+    jwt_secret = _required_environment_value("JWT_SECRET")
 
     database_port_value = _required_environment_value("DATABASE_PORT").strip()
     try:
@@ -71,15 +73,17 @@ def load_settings() -> Settings:
         )
 
     return Settings(
-        database_host=database_host,
-        database_port=database_port,
-        database_name=database_name,
-        database_user=database_user,
-        database_password=database_password,
-        database_url=database_url,
-    )
-
+    database_host=database_host,
+    database_port=database_port,
+    database_name=database_name,
+    database_user=database_user,
+    database_password=database_password,
+    database_url=database_url,
+    JWT_SECRET=jwt_secret,
+)
 
 @lru_cache
 def get_settings() -> Settings:
     return load_settings()
+
+settings = get_settings()

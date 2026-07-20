@@ -6,8 +6,13 @@ from sqlalchemy import DateTime, ForeignKey, String, func
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+#from app.db.base import Base
+#from app.models.course import Course
+
 from app.db.base import Base
-from app.models.course import Course
+
+if TYPE_CHECKING:
+    from app.models.course import Course
 
 class DocumentStatus(str, Enum):
     PENDING = "pending"
