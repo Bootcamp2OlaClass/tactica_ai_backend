@@ -12,12 +12,12 @@ ALGORITHM = "HS256"
 
 def create_access_token(
         data: dict,
-        expires_days: int = 30
+        expires_minutes: int = 60
 ):
     to_encode = data.copy()
 
     expire = datetime.now(timezone.utc) + timedelta(
-        days=expires_days
+        minutes=expires_minutes
     )
 
     to_encode.update({
