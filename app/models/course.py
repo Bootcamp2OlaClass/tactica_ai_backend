@@ -27,9 +27,9 @@ class Course(Base):
        nullable = False,
     ) 
     
-    semester: Mapped[str] = mapped_column(
-        String(255),
-        nullable = False,
+    semester_id: Mapped[int] = mapped_column(
+        ForeignKey("semesters.id"),
+        nullable=False,
     )
     
     professor: Mapped[str | None] = mapped_column(
@@ -56,12 +56,12 @@ class Course(Base):
     
     # Course.tasks ↔ Task.course
     tasks: Mapped[list["Task"]] = relationship(
-        back_populates = "courses"
+        back_populates = "course"
     )
     
     # Course.documents ↔ Document.course
     documents: Mapped[list["Document"]] = relationship(
-        back_populates = "courses"
+        back_populates = "course"
     )
     
     semester: Mapped["Semester"] = relationship(
