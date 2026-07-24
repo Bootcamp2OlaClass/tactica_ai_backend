@@ -3,8 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.db.session import validate_database_connection
-from app.routers import auth
-from app.routers import test
+from app.routers import auth, tasks, test
 
 
 @asynccontextmanager
@@ -20,9 +19,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-#Routers
+
+# Routers
 app.include_router(auth.router)
 app.include_router(test.router)
+app.include_router(tasks.router)
 
 
 @app.get("/")
