@@ -1,5 +1,5 @@
 from app.models.user import User
-from app.models.course import Course
+from app.models.course import Course, CourseStatus
 from app.models.document import Document
 from app.models.task import Task
 from app.models.semester import Semester
