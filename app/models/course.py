@@ -15,7 +15,9 @@ if TYPE_CHECKING:
 class Course(Base):
     __tablename__ = "courses"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[int] = mapped_column(
+        primary_key=True,
+    )
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
@@ -50,13 +52,13 @@ class Course(Base):
     )
 
     user: Mapped["User"] = relationship(
-        back_populates="courses"
+        back_populates="courses",
     )
 
     tasks: Mapped[list["Task"]] = relationship(
-        back_populates="course"
+        back_populates="course",
     )
 
     documents: Mapped[list["Document"]] = relationship(
-        back_populates="course"
+        back_populates="course",
     )

@@ -1,3 +1,4 @@
+aiofiles==25.1.0
 alembic==1.18.5
 annotated-doc==0.0.4
 annotated-types==0.7.0
@@ -22,6 +23,7 @@ pydantic_core==2.46.4
 pytest==9.0.2
 python-dotenv==1.2.2
 python-jose==3.5.0
+python-multipart==0.0.32
 rsa==4.9.1
 six==1.17.0
 SQLAlchemy==2.0.51
