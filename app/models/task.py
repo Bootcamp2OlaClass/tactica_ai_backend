@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
+
 
 from sqlalchemy import DateTime, Enum as SQLEnum
 from sqlalchemy import ForeignKey, String, func

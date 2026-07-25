@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum as PyEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String, func
