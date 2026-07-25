@@ -8,10 +8,6 @@ from app.utils.password import (
     verify_password
 )
 
-from app.utils.password import(
-    hash_password,
-    verify_password
-)
 
 from app.utils.jwt import(
     create_access_token
