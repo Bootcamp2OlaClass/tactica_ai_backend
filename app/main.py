@@ -6,10 +6,16 @@ from uuid import uuid4
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.core.logging import configure_logging, reset_request_id, set_request_id
+from app.core.logging import (
+  configure_logging,
+  reset_request_id,
+  set_request_id,
+)
+
 from app.db.session import validate_database_connection
 from app.routers import auth
 from app.routers import test
+from app.routers import rbac_test
 
 
 configure_logging()
@@ -39,6 +45,7 @@ app = FastAPI(
 # Routers
 app.include_router(auth.router)
 app.include_router(test.router)
+app.include_router(rbac_test.router)
 
 
 @app.middleware("http")
