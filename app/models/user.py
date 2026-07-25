@@ -9,7 +9,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.course import Course
-
+    from app.models.semester import Semester
 
 class User(Base):
     __tablename__ = "users"
@@ -48,5 +48,9 @@ class User(Base):
     )
 
     courses: Mapped[list["Course"]] = relationship(
-        back_populates="user",
+        back_populates = "user"
+    )
+    
+    semesters: Mapped[list["Semester"]] = relationship(
+        back_populates="user"
     )

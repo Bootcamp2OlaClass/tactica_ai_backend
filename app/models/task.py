@@ -11,7 +11,6 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.course import Course
 
-
 class TaskStatus(str, Enum):
     TODO = "todo"
     IN_PROGRESS = "in_progress"
@@ -61,5 +60,5 @@ class Task(Base):
     )
 
     course: Mapped["Course"] = relationship(
-        back_populates="tasks",
+        back_populates = "tasks"
     )

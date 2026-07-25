@@ -8,9 +8,9 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.document import Document
+    from app.models.semester import Semester
     from app.models.task import Task
     from app.models.user import User
-
 
 class Course(Base):
     __tablename__ = "courses"
@@ -61,4 +61,8 @@ class Course(Base):
 
     documents: Mapped[list["Document"]] = relationship(
         back_populates="course",
+    )
+    
+    semester: Mapped["Semester"] = relationship(
+        back_populates="courses"
     )
