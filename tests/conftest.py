@@ -1,6 +1,8 @@
+import os
+
 import pytest
 
-
+os.environ.setdefault("JWT_SECRET", "test-secret-key")
 @pytest.fixture(autouse=True)
 def database_environment(monkeypatch):
     monkeypatch.setenv("DATABASE_HOST", "localhost")
@@ -12,6 +14,7 @@ def database_environment(monkeypatch):
         "DATABASE_URL",
         "postgresql+psycopg2://test_user:test_password@localhost:5432/test_database",
     )
+    monkeypatch.setenv("JWT_SECRET", "test-secret-key")
 
     from app.core.config import get_settings
 
