@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum as PyEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, String, func, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -10,6 +10,10 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.course import Course
     from app.models.semester import Semester
+
+class UserRole(str, PyEnum):
+    ADMIN = "ADMIN"
+    STUDENT = "STUDENT"
 
 class User(Base):
     __tablename__ = "users"
@@ -33,6 +37,12 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
+    )
+
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole),
+        nullable=False,
+        default=UserRole.STUDENT,
     )
 
     created_at: Mapped[datetime] = mapped_column(
