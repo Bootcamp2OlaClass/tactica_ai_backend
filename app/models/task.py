@@ -61,5 +61,5 @@ class Task(Base):
     )
 
     course: Mapped["Course"] = relationship(
-        back_populates = "tasks"
+        back_populates = "tasks",
     )

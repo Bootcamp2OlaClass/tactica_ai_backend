@@ -1,6 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
+from enum import Enum
 
 from sqlalchemy import (
     Boolean,
@@ -31,6 +32,12 @@ class CourseStatus(str, Enum):
     DROPPED = "dropped"
     ARCHIVED = "archived"
 
+
+class CourseStatus(str, Enum):
+    ACTIVE = "ACTIVE"
+    COMPLETED = "COMPLETED"
+    DROPPED = "DROPPED"
+    ARCHIVED = "ARCHIVED"
 
 class Course(Base):
     __tablename__ = "courses"
@@ -72,6 +79,7 @@ class Course(Base):
     course_code: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
+        index=True,
     )
 
     name: Mapped[str] = mapped_column(
@@ -140,8 +148,13 @@ class Course(Base):
         back_populates="courses",
     )
 
+    semester: Mapped["Semester"] = relationship(
+        back_populates="courses",
+    )
+
     tasks: Mapped[list["Task"]] = relationship(
         back_populates="course",
+        cascade="all, delete-orphan",
     )
 
     documents: Mapped[list["Document"]] = relationship(
