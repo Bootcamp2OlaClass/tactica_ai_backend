@@ -1,8 +1,21 @@
 from datetime import datetime
+from enum import Enum
 from typing import TYPE_CHECKING
 from enum import Enum
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, Boolean, func, CheckConstraint, Index, text, Enum as SQLEnum
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum as SQLEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -11,7 +24,14 @@ if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.semester import Semester
     from app.models.task import Task
-    from app.models.user import User
+
+
+class CourseStatus(str, Enum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    DROPPED = "dropped"
+    ARCHIVED = "archived"
+
 
 class CourseStatus(str, Enum):
     ACTIVE = "ACTIVE"
@@ -24,22 +44,19 @@ class Course(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "credits > 0",
-            name="check_course_credits_positive"
+            "credits >= 0 AND credits <= 20",
+            name="ck_courses_credits_range",
         ),
-
-        CheckConstraint(
-            "color IS NULL OR color ~ '^#[0-9A-Fa-f]{6}$'",
-            name="check_hex_color"
-        ),
-
         Index(
-            "idx_courses_semester_id",
+            "ix_courses_semester_id",
             "semester_id",
         ),
-
         Index(
-            "uq_active_course_code_per_semester",
+            "ix_courses_status",
+            "status",
+        ),
+        Index(
+            "uq_courses_active_semester_code",
             "semester_id",
             "course_code",
             unique=True,
@@ -51,23 +68,18 @@ class Course(Base):
         primary_key=True,
     )
 
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"),
-        nullable=False,
-        index=True,
-    )
-    
     semester_id: Mapped[int] = mapped_column(
         ForeignKey(
             "semesters.id",
             ondelete="CASCADE",
-            ),
+        ),
         nullable=False,
     )
 
     course_code: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
+        index=True,
     )
 
     name: Mapped[str] = mapped_column(
@@ -81,11 +93,12 @@ class Course(Base):
     )
 
     credits: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
     )
 
     classroom: Mapped[str | None] = mapped_column(
-        String(100),
+        String(255),
         nullable=True,
     )
 
@@ -100,10 +113,7 @@ class Course(Base):
     )
 
     status: Mapped[CourseStatus] = mapped_column(
-        SQLEnum(
-            CourseStatus,
-            name="coursestatus",
-        ),
+        SQLEnum(CourseStatus),
         nullable=False,
         default=CourseStatus.ACTIVE,
     )
@@ -112,6 +122,7 @@ class Course(Base):
         Boolean,
         nullable=False,
         default=False,
+        server_default=text("false"),
     )
 
     deleted_at: Mapped[datetime | None] = mapped_column(
@@ -122,19 +133,18 @@ class Course(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
         nullable=False,
+        server_default=func.now(),
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
+        nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
-        nullable=False,
     )
 
-# Relationships
-    user: Mapped["User"] = relationship(
+    semester: Mapped["Semester"] = relationship(
         back_populates="courses",
     )
 
@@ -149,7 +159,4 @@ class Course(Base):
 
     documents: Mapped[list["Document"]] = relationship(
         back_populates="course",
-        cascade="all, delete-orphan",
     )
-   
-    
