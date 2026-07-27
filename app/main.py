@@ -1,15 +1,38 @@
 from contextlib import asynccontextmanager
+import logging
+import time
+from uuid import uuid4
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
+from app.core.logging import (
+    configure_logging,
+    reset_request_id,
+    set_request_id,
+)
 from app.db.session import validate_database_connection
-from app.routers import auth, tasks, test
+from app.routers import auth
+from app.routers import rbac_test
+from app.routers import tasks
+from app.routers import test
+
+
+configure_logging()
+
+logger = logging.getLogger(__name__)
+request_logger = logging.getLogger("request")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    validate_database_connection()
-    yield
+    logger.info("Application started")
+
+    try:
+        validate_database_connection()
+        yield
+    finally:
+        logger.info("Application shutdown")
 
 
 app = FastAPI(
@@ -22,8 +45,68 @@ app = FastAPI(
 
 # Routers
 app.include_router(auth.router)
-app.include_router(test.router)
 app.include_router(tasks.router)
+app.include_router(test.router)
+app.include_router(rbac_test.router)
+
+
+@app.middleware("http")
+async def request_logging_middleware(
+    request: Request,
+    call_next,
+):
+    request_id = str(uuid4())
+    token = set_request_id(request_id)
+    start_time = time.perf_counter()
+
+    try:
+        try:
+            response = await call_next(request)
+        except Exception:
+            duration_ms = round(
+                (time.perf_counter() - start_time) * 1000
+            )
+            client_ip = (
+                request.client.host
+                if request.client
+                else "unknown"
+            )
+
+            request_logger.exception(
+                "%s %s 500 %sms client_ip=%s",
+                request.method,
+                request.url.path,
+                duration_ms,
+                client_ip,
+            )
+
+            response = JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"},
+            )
+        else:
+            duration_ms = round(
+                (time.perf_counter() - start_time) * 1000
+            )
+            client_ip = (
+                request.client.host
+                if request.client
+                else "unknown"
+            )
+
+            request_logger.info(
+                "%s %s %s %sms client_ip=%s",
+                request.method,
+                request.url.path,
+                response.status_code,
+                duration_ms,
+                client_ip,
+            )
+
+        response.headers["X-Request-ID"] = request_id
+        return response
+    finally:
+        reset_request_id(token)
 
 
 @app.get("/")
