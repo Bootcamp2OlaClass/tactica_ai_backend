@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 
 
 from sqlalchemy import DateTime, Enum as SQLEnum
@@ -60,5 +61,5 @@ class Task(Base):
     )
 
     course: Mapped["Course"] = relationship(
-        back_populates = "tasks"
+        back_populates = "tasks",
     )
