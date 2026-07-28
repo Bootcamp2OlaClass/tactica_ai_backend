@@ -77,6 +77,7 @@ class SemesterRepository:
         user_id: int,
         name: str,
         academic_year: int,
+        status: SemesterStatus = SemesterStatus.ACTIVE,
         exclude_semester_id: int | None = None,
     ) -> Semester | None:
         """
@@ -94,6 +95,7 @@ class SemesterRepository:
             func.lower(Semester.name)
             == normalized_name.lower(),
             Semester.academic_year == academic_year,
+            Semester.status == status,
             Semester.is_deleted.is_(False),
         )
 
