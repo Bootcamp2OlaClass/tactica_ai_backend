@@ -6,11 +6,19 @@ from app.exceptions.course import (
     CourseNotFoundError,
     CourseValidationError,
 )
+
 from app.exceptions.semester import (
     SemesterConflictError,
     SemesterError,
     SemesterNotFoundError,
     SemesterValidationError,
+)
+
+from app.exceptions.task import (
+    TaskConflictError,
+    TaskError,
+    TaskNotFoundError,
+    TaskValidationError,
 )
 
 
@@ -19,8 +27,14 @@ __all__ = [
     "CourseError",
     "CourseNotFoundError",
     "CourseValidationError",
+
     "SemesterConflictError",
     "SemesterError",
     "SemesterNotFoundError",
     "SemesterValidationError",
+
+    "TaskConflictError",
+    "TaskError",
+    "TaskNotFoundError",
+    "TaskValidationError",
 ]
