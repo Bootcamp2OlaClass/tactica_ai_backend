@@ -23,6 +23,15 @@ class User(Base):
         primary_key=True,
     )
 
+    role: Mapped[UserRole] = mapped_column(
+        Enum(
+            UserRole,
+            name="userrole",
+        ),
+        nullable=False,
+        default=UserRole.STUDENT,
+    )
+
     email: Mapped[str] = mapped_column(
         String(255),
         unique=True,
