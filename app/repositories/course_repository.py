@@ -51,6 +51,7 @@ def find_duplicate_course_code(
         .filter(
             Course.semester_id == semester_id,
             Course.course_code == course_code,
+            Course.status == CourseStatus.ACTIVE,
             Semester.user_id == user_id,
             Course.is_deleted.is_(False),
             Semester.is_deleted.is_(False),
@@ -199,6 +200,7 @@ def update_course(
     update_data: dict,
 ) -> Course:
     allowed_fields = {
+        "semester_id",
         "course_code",
         "name",
         "instructor_name",

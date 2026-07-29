@@ -1,7 +1,6 @@
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
-from enum import Enum
 
 from sqlalchemy import (
     Boolean,
@@ -27,17 +26,11 @@ if TYPE_CHECKING:
 
 
 class CourseStatus(str, Enum):
-    ACTIVE = "active"
-    COMPLETED = "completed"
-    DROPPED = "dropped"
-    ARCHIVED = "archived"
-
-
-class CourseStatus(str, Enum):
     ACTIVE = "ACTIVE"
     COMPLETED = "COMPLETED"
     DROPPED = "DROPPED"
     ARCHIVED = "ARCHIVED"
+
 
 class Course(Base):
     __tablename__ = "courses"
@@ -60,7 +53,9 @@ class Course(Base):
             "semester_id",
             "course_code",
             unique=True,
-            postgresql_where=text("is_deleted = false"),
+            postgresql_where=text(
+                "is_deleted = false AND status = 'ACTIVE'"
+            ),
         ),
     )
 
@@ -142,10 +137,6 @@ class Course(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
-    )
-
-    semester: Mapped["Semester"] = relationship(
-        back_populates="courses",
     )
 
     semester: Mapped["Semester"] = relationship(

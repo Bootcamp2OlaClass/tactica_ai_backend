@@ -86,7 +86,12 @@ def test_course_create_rejects_unsupported_credits(credits):
 
 
 def test_course_create_validates_color_and_status():
-    course = CourseCreate(**valid_course_data(color="#A1B2C3", status="completed"))
+    course = CourseCreate(
+        **valid_course_data(
+            color="#A1B2C3",
+            status=CourseStatus.COMPLETED,
+        )
+    )
 
     assert course.color == "#A1B2C3"
     assert course.status is CourseStatus.COMPLETED
@@ -112,7 +117,9 @@ def test_course_update_normalizes_course_code():
     update = CourseUpdate(course_code=" cs202 ")
 
     assert update.course_code == "CS202"
-    assert update.model_dump(exclude_unset=True) == {"course_code": "CS202"}
+    assert update.model_dump(exclude_unset=True) == {
+        "course_code": "CS202"
+    }
 
 
 def test_course_create_rejects_database_managed_fields():
@@ -131,8 +138,12 @@ def test_course_response_serializes_orm_like_object_without_deletion_fields():
 def test_course_list_response_serializes_items_and_pagination_metadata():
     response = CourseListResponse(
         items=[
-            CourseResponse.model_validate(course_object(id=1)),
-            CourseResponse.model_validate(course_object(id=2)),
+            CourseResponse.model_validate(
+                course_object(id=1)
+            ),
+            CourseResponse.model_validate(
+                course_object(id=2)
+            ),
         ],
         page=1,
         page_size=20,
@@ -151,9 +162,17 @@ def test_course_list_response_serializes_items_and_pagination_metadata():
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("page", 0), ("page_size", 0), ("total", -1), ("total_pages", -1)],
+    [
+        ("page", 0),
+        ("page_size", 0),
+        ("total", -1),
+        ("total_pages", -1),
+    ],
 )
-def test_course_list_response_rejects_invalid_pagination(field, value):
+def test_course_list_response_rejects_invalid_pagination(
+    field,
+    value,
+):
     data = {
         "items": [],
         "page": 1,
@@ -169,16 +188,29 @@ def test_course_list_response_rejects_invalid_pagination(field, value):
 
 def test_course_create_accepts_description_at_max_length():
     course = CourseCreate(
-        **valid_course_data(description="a" * COURSE_DESCRIPTION_MAX_LENGTH)
+        **valid_course_data(
+            description=(
+                "a" * COURSE_DESCRIPTION_MAX_LENGTH
+            )
+        )
     )
 
-    assert len(course.description) == COURSE_DESCRIPTION_MAX_LENGTH
+    assert (
+        len(course.description)
+        == COURSE_DESCRIPTION_MAX_LENGTH
+    )
 
 
 def test_course_create_rejects_overlong_description():
     with pytest.raises(ValidationError):
         CourseCreate(
             **valid_course_data(
-                description="a" * (COURSE_DESCRIPTION_MAX_LENGTH + 1)
+                description=(
+                    "a"
+                    * (
+                        COURSE_DESCRIPTION_MAX_LENGTH
+                        + 1
+                    )
+                )
             )
         )

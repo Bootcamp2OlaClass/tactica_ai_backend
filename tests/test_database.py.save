@@ -1,7 +1,10 @@
 import importlib
+x
 import logging
 import sys
 from unittest.mock import MagicMock
+X
+X
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,10 +16,8 @@ from app.core.config import ConfigurationError, get_settings, load_settings
 
 def load_session_module():
     module_name = "app.db.session"
-
     if module_name in sys.modules:
         return importlib.reload(sys.modules[module_name])
-
     return importlib.import_module(module_name)
 
 
@@ -28,10 +29,7 @@ def test_settings_load_from_environment(monkeypatch):
     monkeypatch.setenv("DATABASE_PASSWORD", "environment-secret")
     monkeypatch.setenv(
         "DATABASE_URL",
-        (
-            "postgresql+psycopg2://application_user:"
-            "environment-secret@database.internal:5544/tactica_test"
-        ),
+        "postgresql+psycopg2://application_user:environment-secret@database.internal:5544/tactica_test",
     )
 
     settings = load_settings()
@@ -49,10 +47,7 @@ def test_settings_load_from_environment(monkeypatch):
 def test_settings_reject_invalid_port(monkeypatch):
     monkeypatch.setenv("DATABASE_PORT", "not-a-port")
 
-    with pytest.raises(
-        ConfigurationError,
-        match="DATABASE_PORT must be an integer",
-    ):
+    with pytest.raises(ConfigurationError, match="DATABASE_PORT must be an integer"):
         load_settings()
 
 
@@ -80,15 +75,9 @@ def test_engine_uses_safe_pool_configuration():
 def test_get_db_always_closes_session(monkeypatch):
     session_module = load_session_module()
     database_session = MagicMock()
-
-    monkeypatch.setattr(
-        session_module,
-        "SessionLocal",
-        lambda: database_session,
-    )
+    monkeypatch.setattr(session_module, "SessionLocal", lambda: database_session)
 
     dependency = session_module.get_db()
-
     assert next(dependency) is database_session
 
     dependency.close()
@@ -96,98 +85,51 @@ def test_get_db_always_closes_session(monkeypatch):
     database_session.close.assert_called_once_with()
 
 
-def test_successful_connectivity_validation_executes_select_and_logs(
-    monkeypatch,
-    caplog,
-):
-    monkeypatch.setenv("DATABASE_HOST", "localhost")
-    monkeypatch.setenv("DATABASE_PORT", "5432")
-    monkeypatch.setenv("DATABASE_NAME", "test_database")
-    monkeypatch.setenv("DATABASE_USER", "test_user")
-    monkeypatch.setenv("DATABASE_PASSWORD", "test_password")
-    monkeypatch.setenv(
-        "DATABASE_URL",
-        (
-            "postgresql+psycopg2://test_user:"
-            "test_password@localhost:5432/test_database"
-        ),
-    )
-
-    get_settings.cache_clear()
-
+def test_successful_connectivity_validation_executes_select_and_logs(caplog):
     session_module = load_session_module()
     database_engine = MagicMock()
-    connection = (
-        database_engine.connect.return_value
-        .__enter__.return_value
-    )
+    connection = database_engine.connect.return_value.__enter__.return_value
 
-    with caplog.at_level(
-        logging.INFO,
-        logger="app.db.session",
-    ):
+    with caplog.at_level(logging.INFO, logger="app.db.session"):
         session_module.validate_database_connection(
             database_engine=database_engine,
             database_settings=get_settings(),
         )
 
     executed_statement = connection.execute.call_args.args[0]
-
     assert str(executed_statement) == "SELECT 1"
-    assert (
-        "Database connection established successfully"
-        in caplog.text
-    )
+    assert "Database connection established successfully" in caplog.text
     assert "host=localhost" in caplog.text
     assert "database=test_database" in caplog.text
     assert "test_password" not in caplog.text
 
-    get_settings.cache_clear()
 
-
-def test_failed_connectivity_validation_is_safe(
-    monkeypatch,
-    caplog,
-):
+def test_failed_connectivity_validation_is_safe(monkeypatch, caplog):
     password = "database-password-must-not-leak"
-
     database_url = (
         "postgresql+psycopg2://test_user:"
         f"{password}@localhost:5432/test_database"
     )
-
     monkeypatch.setenv("DATABASE_PASSWORD", password)
     monkeypatch.setenv("DATABASE_URL", database_url)
-
     get_settings.cache_clear()
 
     session_module = load_session_module()
     database_engine = MagicMock()
-
     database_engine.connect.side_effect = OperationalError(
         "SELECT 1",
         None,
-        RuntimeError(
-            f"connection failed for {database_url}"
-        ),
+        RuntimeError(f"connection failed for {database_url}"),
     )
 
-    with caplog.at_level(
-        logging.ERROR,
-        logger="app.db.session",
-    ):
-        with pytest.raises(
-            session_module.DatabaseConnectionError
-        ) as raised:
+    with caplog.at_level(logging.ERROR, logger="app.db.session"):
+        with pytest.raises(session_module.DatabaseConnectionError) as raised:
             session_module.validate_database_connection(
                 database_engine=database_engine,
                 database_settings=get_settings(),
             )
 
-    assert (
-        str(raised.value)
-        == "PostgreSQL database connectivity validation failed"
-    )
+    assert str(raised.value) == "PostgreSQL database connectivity validation failed"
     assert "Database connection failed" in caplog.text
     assert "reason=OperationalError" in caplog.text
     assert password not in caplog.text
@@ -195,21 +137,13 @@ def test_failed_connectivity_validation_is_safe(
     assert password not in str(raised.value)
     assert database_url not in str(raised.value)
 
-    get_settings.cache_clear()
-
 
 def test_health_endpoint_remains_unchanged(monkeypatch):
     import app.main as main
 
     main = importlib.reload(main)
-
     connectivity_check = MagicMock()
-
-    monkeypatch.setattr(
-        main,
-        "validate_database_connection",
-        connectivity_check,
-    )
+    monkeypatch.setattr(main, "validate_database_connection", connectivity_check)
 
     with TestClient(main.app) as client:
         response = client.get("/health")
