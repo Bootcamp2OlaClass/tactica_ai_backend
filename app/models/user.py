@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import Enum
+from enum import Enum as PyEnum
 from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum as SQLEnum, String, func
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from app.models.semester import Semester
 
 
-class UserRole(str, Enum):
+class UserRole(str, PyEnum):
     STUDENT = "STUDENT"
     ADMIN = "ADMIN"
 
@@ -24,7 +24,7 @@ class User(Base):
     )
 
     role: Mapped[UserRole] = mapped_column(
-        Enum(
+        SQLEnum(
             UserRole,
             name="userrole",
         ),
@@ -47,12 +47,6 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
-    )
-
-    role: Mapped[UserRole] = mapped_column(
-        SQLEnum(UserRole),
-        nullable=False,
-        default=UserRole.STUDENT,
     )
 
     created_at: Mapped[datetime] = mapped_column(
