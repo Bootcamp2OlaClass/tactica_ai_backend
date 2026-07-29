@@ -47,6 +47,10 @@ class CourseCreate(CourseBase):
     semester_id: int
 
 
+class CourseCreateRequest(CourseBase):
+    """Request body for creating a course under a semester path."""
+
+
 class CourseUpdate(CourseBase):
     semester_id: int | None = None
     course_code: str | None = Field(default=None, min_length=1, max_length=COURSE_CODE_MAX_LENGTH)
