@@ -103,5 +103,5 @@ class Semester(Base):
     
     courses: Mapped[list["Course"]] = relationship(
         back_populates="semester",
+        cascade="all, delete-orphan",
     )
-    
