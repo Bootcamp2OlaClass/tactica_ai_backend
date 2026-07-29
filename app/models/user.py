@@ -24,7 +24,7 @@ class User(Base):
     )
 
     role: Mapped[UserRole] = mapped_column(
-        Enum(
+        SQLEnum(
             UserRole,
             name="userrole",
         ),
@@ -47,12 +47,6 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
-    )
-
-    role: Mapped[UserRole] = mapped_column(
-        SQLEnum(UserRole),
-        nullable=False,
-        default=UserRole.STUDENT,
     )
 
     created_at: Mapped[datetime] = mapped_column(
