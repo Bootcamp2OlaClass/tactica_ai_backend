@@ -23,6 +23,15 @@ class User(Base):
         primary_key=True,
     )
 
+    role: Mapped[UserRole] = mapped_column(
+        SQLEnum(
+            UserRole,
+            name="userrole",
+        ),
+        nullable=False,
+        default=UserRole.STUDENT,
+    )
+
     email: Mapped[str] = mapped_column(
         String(255),
         unique=True,
@@ -38,12 +47,6 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(
         String(255),
         nullable=False,
-    )
-
-    role: Mapped[UserRole] = mapped_column(
-        SQLEnum(UserRole),
-        nullable=False,
-        default=UserRole.STUDENT,
     )
 
     created_at: Mapped[datetime] = mapped_column(
