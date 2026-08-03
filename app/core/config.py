@@ -23,6 +23,9 @@ class Settings:
     database_url: str = field(repr=False)
     JWT_SECRET: str = field(repr=False)
 
+    upload_dir: str
+    max_upload_size: int
+
 
 def _required_environment_value(name: str) -> str:
     value = os.getenv(name)
@@ -40,6 +43,27 @@ def load_settings() -> Settings:
     database_password = _required_environment_value("DATABASE_PASSWORD")
     database_url = _required_environment_value("DATABASE_URL")
     jwt_secret = _required_environment_value("JWT_SECRET")
+
+    upload_dir = os.getenv("UPLOAD_DIR", "uploads").strip()
+    max_upload_size_value = os.getenv(
+        "MAX_UPLOAD_SIZE",
+        str(10*1024*1024),  # Default to 10 MB
+    ).strip()
+
+    if not upload_dir:
+        raise ConfigurationError("UPLOAD_DIR must not be empty")
+
+    try:
+        max_upload_size = int(max_upload_size_value)
+    except ValueError as exc:
+        raise ConfigurationError(
+            "MAX_UPLOAD_SIZE must be an integer"
+        ) from exc
+
+    if max_upload_size <= 0:
+        raise ConfigurationError(
+            "MAX_UPLOAD_SIZE must be greater than 0"
+        )
 
     database_port_value = _required_environment_value("DATABASE_PORT").strip()
     try:
@@ -73,14 +97,17 @@ def load_settings() -> Settings:
         )
 
     return Settings(
-    database_host=database_host,
-    database_port=database_port,
-    database_name=database_name,
-    database_user=database_user,
-    database_password=database_password,
-    database_url=database_url,
-    JWT_SECRET=jwt_secret,
-)
+        database_host=database_host,
+        database_port=database_port,
+        database_name=database_name,
+        database_user=database_user,
+        database_password=database_password,
+        database_url=database_url,
+        JWT_SECRET=jwt_secret,
+        upload_dir=upload_dir,
+        max_upload_size=max_upload_size,
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:
