@@ -32,3 +32,17 @@ class LocalStorageService:
 
         if target_path.exists():
             target_path.unlink()
+
+    def get_existing_file(
+        self,
+        storage_path: str,
+    ) -> Path:
+        target_path = Path(storage_path).resolve()
+
+        if self.upload_dir not in target_path.parents:
+            raise ValueError("Invalid storage path.")
+
+        if not target_path.is_file():
+            raise FileNotFoundError("Stored file does not exist.")
+
+        return target_path

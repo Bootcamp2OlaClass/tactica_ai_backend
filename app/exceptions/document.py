@@ -20,3 +20,6 @@ class DuplicateDocumentError(DocumentError):
 
 class FileStorageError(DocumentError):
     """Raised when the physical file cannot be stored or removed."""
+
+class DocumentFileMissingError(DocumentError, LookupError):
+    """Raised when document metadata exists but the physical file is missing."""
