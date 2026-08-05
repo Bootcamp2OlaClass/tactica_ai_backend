@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import func, select
@@ -68,6 +68,54 @@ class SemesterRepository:
             Semester.id == semester_id,
             Semester.user_id == user_id,
             Semester.is_deleted.is_(False),
+        )
+
+        return self.db.scalar(statement)
+
+    def list_active_by_user(
+        self,
+        user_id: int,
+    ) -> list[Semester]:
+        """Return all non-deleted active semesters owned by one user.
+
+        Returning every match lets the service detect invalid data where
+        more than one semester has been marked active.
+        """
+
+        statement = (
+            select(Semester)
+            .where(
+                Semester.user_id == user_id,
+                Semester.status == SemesterStatus.ACTIVE,
+                Semester.is_deleted.is_(False),
+            )
+            .order_by(Semester.start_date.desc(), Semester.id.desc())
+        )
+
+        return list(self.db.scalars(statement).all())
+
+    def get_by_date_and_owner(
+        self,
+        user_id: int,
+        current_date: date,
+    ) -> Semester | None:
+        """Return the user's non-deleted semester containing a date.
+
+        Date boundaries are inclusive. Overlapping ranges are resolved
+        deterministically in favour of the most recently started semester,
+        then the greatest ID.
+        """
+
+        statement = (
+            select(Semester)
+            .where(
+                Semester.user_id == user_id,
+                Semester.is_deleted.is_(False),
+                Semester.start_date <= current_date,
+                Semester.end_date >= current_date,
+            )
+            .order_by(Semester.start_date.desc(), Semester.id.desc())
+            .limit(1)
         )
 
         return self.db.scalar(statement)

@@ -354,6 +354,122 @@ def test_deleted_semester_cannot_be_retrieved(
 
 
 # ---------------------------------------------------------------------------
+# Current semester resolution
+# ---------------------------------------------------------------------------
+
+
+def test_current_semester_prefers_explicitly_active_semester(
+    service: SemesterService,
+    mock_repository: MagicMock,
+    existing_semester: Semester,
+) -> None:
+    mock_repository.list_active_by_user.return_value = [
+        existing_semester
+    ]
+
+    result = service.get_current_semester(
+        user_id=10,
+        current_date=date(2026, 9, 1),
+    )
+
+    assert result is existing_semester
+    mock_repository.list_active_by_user.assert_called_once_with(
+        user_id=10
+    )
+    mock_repository.get_by_date_and_owner.assert_not_called()
+
+
+def test_current_semester_falls_back_to_date_range(
+    service: SemesterService,
+    mock_repository: MagicMock,
+    existing_semester: Semester,
+) -> None:
+    current_date = date(2026, 9, 1)
+    existing_semester.status = SemesterStatus.UPCOMING
+    mock_repository.list_active_by_user.return_value = []
+    mock_repository.get_by_date_and_owner.return_value = (
+        existing_semester
+    )
+
+    result = service.get_current_semester(
+        user_id=10,
+        current_date=current_date,
+    )
+
+    assert result is existing_semester
+    mock_repository.get_by_date_and_owner.assert_called_once_with(
+        user_id=10,
+        current_date=current_date,
+    )
+
+
+def test_current_semester_returns_none_when_no_match(
+    service: SemesterService,
+    mock_repository: MagicMock,
+) -> None:
+    mock_repository.list_active_by_user.return_value = []
+    mock_repository.get_by_date_and_owner.return_value = None
+
+    result = service.get_current_semester(
+        user_id=10,
+        current_date=date(2026, 7, 1),
+    )
+
+    assert result is None
+
+
+def test_current_semester_scopes_queries_to_current_user(
+    service: SemesterService,
+    mock_repository: MagicMock,
+) -> None:
+    current_date = date(2026, 9, 1)
+    mock_repository.list_active_by_user.return_value = []
+    mock_repository.get_by_date_and_owner.return_value = None
+
+    service.get_current_semester(
+        user_id=20,
+        current_date=current_date,
+    )
+
+    mock_repository.list_active_by_user.assert_called_once_with(
+        user_id=20
+    )
+    mock_repository.get_by_date_and_owner.assert_called_once_with(
+        user_id=20,
+        current_date=current_date,
+    )
+
+
+def test_multiple_active_semesters_raise_controlled_conflict(
+    service: SemesterService,
+    mock_repository: MagicMock,
+    existing_semester: Semester,
+) -> None:
+    second_active = Semester(
+        id=2,
+        user_id=10,
+        name="Spring Semester",
+        academic_year=2026,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 5, 31),
+        status=SemesterStatus.ACTIVE,
+        is_deleted=False,
+    )
+    mock_repository.list_active_by_user.return_value = [
+        existing_semester,
+        second_active,
+    ]
+
+    with pytest.raises(
+        SemesterConflictError,
+        match="Multiple active semesters",
+    ):
+        service.get_current_semester(user_id=10)
+
+    mock_repository.get_by_date_and_owner.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # List semesters
 # ---------------------------------------------------------------------------
 
