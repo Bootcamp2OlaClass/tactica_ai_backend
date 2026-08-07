@@ -150,6 +150,37 @@ class SemesterService:
 
         return semester
 
+    def get_current_semester(
+        self,
+        user_id: int,
+        current_date: date | None = None,
+    ) -> Semester | None:
+        """Resolve the current semester for one user.
+
+        An explicit ACTIVE status takes priority over date ranges. Multiple
+        active semesters represent invalid domain state and produce a
+        controlled conflict instead of an arbitrary result.
+        """
+
+        active_semesters = self.repository.list_active_by_user(
+            user_id=user_id,
+        )
+
+        if len(active_semesters) > 1:
+            raise SemesterConflictError(
+                "Multiple active semesters exist for this user."
+            )
+
+        if active_semesters:
+            return active_semesters[0]
+
+        resolution_date = current_date or date.today()
+
+        return self.repository.get_by_date_and_owner(
+            user_id=user_id,
+            current_date=resolution_date,
+        )
+
     def list_semesters(
         self,
         user_id: int,
