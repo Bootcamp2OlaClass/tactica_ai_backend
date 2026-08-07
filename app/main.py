@@ -15,6 +15,7 @@ from app.core.logging import (
 from app.db.session import validate_database_connection
 from app.routers import auth
 from app.routers import courses
+from app.routers import dashboard
 from app.routers import test
 from app.routers import rbac_test
 from app.routers import task
@@ -48,6 +49,7 @@ app = FastAPI(
 # Routers
 app.include_router(auth.router)
 app.include_router(courses.router)
+app.include_router(dashboard.router)
 app.include_router(test.router)
 app.include_router(rbac_test.router)
 app.include_router(task.router)
