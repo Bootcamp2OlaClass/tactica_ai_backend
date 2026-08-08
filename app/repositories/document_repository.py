@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Query, Session
 
@@ -38,6 +38,16 @@ class DocumentRepository:
         self.db.flush()
 
         return document
+
+    def get_by_id(
+        self,
+        document_id: int,
+    ) -> Document | None:
+        return (
+            self.db.query(Document)
+            .filter(Document.id == document_id)
+            .first()
+        )
 
     def get_active_by_id(
         self,
@@ -157,3 +167,14 @@ class DocumentRepository:
         )
 
         return query.count()
+
+    def soft_delete(
+        self,
+        document: Document,
+    ) -> Document:
+        if not document.is_deleted:
+            document.is_deleted = True
+            document.deleted_at = datetime.now(timezone.utc)
+            self.db.flush()
+
+        return document

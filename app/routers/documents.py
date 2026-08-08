@@ -37,6 +37,7 @@ from app.schemas.document import (
     DocumentListResponse,
     DocumentResponse,
 )
+from app.services.document_delete import DocumentDeleteService
 from app.services.document_query import DocumentQueryService
 from app.services.document_upload import DocumentUploadService
 
@@ -66,7 +67,7 @@ DOCUMENT_ERROR_RESPONSES = {
     },
     status.HTTP_500_INTERNAL_SERVER_ERROR: {
         "model": ErrorResponse,
-        "description": "Document storage or download failure",
+        "description": "Document storage, download, or cleanup fairlure",
     },
 }
 
@@ -81,6 +82,12 @@ def get_document_upload_service(
     db: Session = Depends(get_db),
 ) -> DocumentUploadService:
     return DocumentUploadService(db)
+
+
+def get_document_delete_service(
+    db: Session = Depends(get_db),
+) -> DocumentDeleteService:
+    return DocumentDeleteService(db)
 
 
 def raise_document_http_exception(
@@ -168,6 +175,8 @@ async def upload_course_document(
     status_code=status.HTTP_200_OK,
     responses=DOCUMENT_ERROR_RESPONSES,
 )
+
+
 def list_course_documents(
     course_id: int = Path(
         ge=1,
@@ -277,6 +286,8 @@ def get_document(
     status_code=status.HTTP_200_OK,
     responses=DOCUMENT_ERROR_RESPONSES,
 )
+
+
 def download_document(
     document_id: int = Path(
         ge=1,
@@ -297,6 +308,30 @@ def download_document(
             path=file_path,
             media_type=document.mime_type,
             filename=document.original_file_name,
+        )
+
+    except DocumentError as error:
+        raise_document_http_exception(error)
+
+@router.delete(
+    "/documents/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=DOCUMENT_ERROR_RESPONSES,
+)
+def delete_document(
+    document_id: int = Path(
+        ge=1,
+        description="ID of the document to delete",
+    ),
+    current_user: User = Depends(get_current_user),
+    service: DocumentDeleteService = Depends(
+        get_document_delete_service
+    ),
+) -> None:
+    try:
+        service.delete_document(
+            document_id=document_id,
+            user_id=current_user.id,
         )
 
     except DocumentError as error:
