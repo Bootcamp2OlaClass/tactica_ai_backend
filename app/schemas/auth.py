@@ -17,6 +17,21 @@ class UserResponse(BaseModel):
     id: int
     email: str
     full_name: str
+    role: str
+    email_verified: bool
 
     class Config:
         from_attributes = True
+
+class PasswordResetRequestSchema(BaseModel):
+    email: str
+
+class PasswordResetConfirmSchema(BaseModel):
+    token: str
+    new_password: str
+
+class EmailVerificationConfirmSchema(BaseModel):
+    token: str
+
+class MessageResponse(BaseModel):
+    message: str

@@ -1,22 +1,67 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
-    TokenResponse
+    TokenResponse,
+    UserResponse,
+    PasswordResetRequestSchema,
+    PasswordResetConfirmSchema,
+    EmailVerificationConfirmSchema,
+    MessageResponse,
 )
 
 from app.services.auth_service import (
     register_user,
     login_user
 )
+from app.services.password_reset_service import (
+    request_password_reset,
+    confirm_password_reset,
+)
+from app.services.email_verification_service import (
+    resend_verification_email,
+    confirm_email_verification,
+)
+from app.services.token_service import (
+    issue_refresh_token,
+    rotate_refresh_token,
+    revoke_refresh_token,
+)
+from app.api.auth import get_current_user
+from app.core.config import get_settings
 from app.db.session import get_db
+from app.models.user import User
+from app.utils.jwt import create_access_token
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"]
 )
+
+REFRESH_COOKIE_NAME = "refresh_token"
+
+
+def _set_refresh_cookie(response: Response, raw_refresh_token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=raw_refresh_token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        path="/auth",
+        max_age=settings.refresh_token_expire_days * 24 * 60 * 60,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=REFRESH_COOKIE_NAME,
+        path="/auth",
+    )
+
 
 @router.post(
         "/register",
@@ -24,14 +69,19 @@ router = APIRouter(
         )
 def register(
     user: RegisterRequest,
+    response: Response,
     db: Session = Depends(get_db)
 ):
-    token = register_user(
+    token, created_user = register_user(
         db=db,
         email=user.email,
         password=user.password,
         full_name=user.full_name
     )
+
+    raw_refresh_token, _ = issue_refresh_token(db, created_user.id)
+    _set_refresh_cookie(response, raw_refresh_token)
+
     return {
         "access_token": token,
         "token_type": "bearer"
@@ -43,9 +93,10 @@ def register(
         )
 def login(
     user: LoginRequest,
+    response: Response,
     db: Session = Depends(get_db)
 ):
-    token = login_user(
+    token, logged_in_user = login_user(
         db=db,
         email=user.email,
         password=user.password
@@ -57,5 +108,120 @@ def login(
             detail="Invalid credentials"
         )
 
+    raw_refresh_token, _ = issue_refresh_token(db, logged_in_user.id)
+    _set_refresh_cookie(response, raw_refresh_token)
+
     return {"access_token": token,
             "token_type": "bearer"}
+
+
+@router.post(
+        "/refresh",
+        response_model=TokenResponse
+        )
+def refresh(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    raw_refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if not raw_refresh_token:
+        raise HTTPException(
+            status_code=401,
+            detail="No refresh token provided",
+        )
+
+    new_raw_refresh_token, record = rotate_refresh_token(db, raw_refresh_token)
+    _set_refresh_cookie(response, new_raw_refresh_token)
+
+    access_token = create_access_token({"user_id": record.user_id})
+
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post(
+        "/logout",
+        response_model=MessageResponse,
+        )
+def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    raw_refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if raw_refresh_token:
+        revoke_refresh_token(db, raw_refresh_token)
+
+    _clear_refresh_cookie(response)
+    return {"message": "Logged out"}
+
+
+@router.get(
+        "/me",
+        response_model=UserResponse,
+        )
+def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.post(
+        "/password-reset/request",
+        response_model=MessageResponse,
+        )
+def password_reset_request(
+    body: PasswordResetRequestSchema,
+    db: Session = Depends(get_db),
+):
+    request_password_reset(db, body.email)
+    return {
+        "message": (
+            "If an account with that email exists, a password reset "
+            "link has been sent."
+        )
+    }
+
+
+@router.post(
+        "/password-reset/confirm",
+        response_model=MessageResponse,
+        )
+def password_reset_confirm(
+    body: PasswordResetConfirmSchema,
+    db: Session = Depends(get_db),
+):
+    success = confirm_password_reset(db, body.token, body.new_password)
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired password reset token",
+        )
+    return {"message": "Password has been reset"}
+
+
+@router.post(
+        "/verify-email/resend",
+        response_model=MessageResponse,
+        )
+def verify_email_resend(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    resend_verification_email(db, current_user)
+    return {"message": "Verification email sent"}
+
+
+@router.post(
+        "/verify-email/confirm",
+        response_model=MessageResponse,
+        )
+def verify_email_confirm(
+    body: EmailVerificationConfirmSchema,
+    db: Session = Depends(get_db),
+):
+    success = confirm_email_verification(db, body.token)
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired verification token",
+        )
+    return {"message": "Email verified"}

@@ -3,6 +3,9 @@ from app.models.course import Course, CourseStatus
 from app.models.document import Document
 from app.models.task import Task
 from app.models.semester import Semester
+from app.models.refresh_token import RefreshToken
+from app.models.password_reset_token import PasswordResetToken
+from app.models.email_verification_token import EmailVerificationToken
 
 __all__ = [
     "User",
@@ -10,4 +13,7 @@ __all__ = [
     "Document",
     "Task",
     "Semester",
+    "RefreshToken",
+    "PasswordResetToken",
+    "EmailVerificationToken",
 ]

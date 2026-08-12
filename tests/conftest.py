@@ -24,6 +24,9 @@ def database_environment(monkeypatch):
         ),
     )
     monkeypatch.setenv("JWT_SECRET", "test-secret-key")
+    # The test client talks over plain http://testserver — a Secure cookie
+    # would never round-trip back to the client, unlike a real https deploy.
+    monkeypatch.setenv("COOKIE_SECURE", "false")
 
     from app.core.config import get_settings
 
