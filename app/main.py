@@ -4,12 +4,13 @@ import time
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.logging import (
-  configure_logging,
-  reset_request_id,
-  set_request_id,
+    configure_logging,
+    reset_request_id,
+    set_request_id,
 )
 
 from app.db.session import validate_database_connection
@@ -43,6 +44,19 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Routers
 app.include_router(auth.router)
