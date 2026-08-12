@@ -28,6 +28,14 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      # Shared with `worker` (Phase 05) -- LocalStorageProvider writes
+      # relative to UPLOAD_DIR on whichever container's filesystem it
+      # runs in; without a shared volume, a file the API saves is
+      # invisible to the worker container that needs to read it back
+      # (found live: process_document failed with "file not found" until
+      # this was added -- separate containers, separate filesystems).
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -42,7 +50,11 @@ services:
   worker:
     build:
       context: .
-    command: celery -A app.worker.celery_app worker --loglevel=info --pool=solo
+    # Explicit -Q so the worker consumes every named queue (app/worker/celery_app.py),
+    # not just the default -- otherwise a task routed to e.g. "documents"
+    # (Phase 05+) silently sits unconsumed if a queue name is ever added
+    # here without updating this list.
+    command: celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q system,documents,ai,notifications,calendar
     environment:
       DATABASE_HOST: db
       DATABASE_PORT: "5432"
@@ -54,6 +66,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -97,3 +111,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:

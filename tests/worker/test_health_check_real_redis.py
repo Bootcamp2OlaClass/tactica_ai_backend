@@ -18,6 +18,7 @@ and this test must never touch that.
 
 import subprocess
 import sys
+import threading
 import time
 
 import pytest
@@ -67,12 +68,20 @@ def _point_celery_client_at_test_redis(redis_available):
     celery_app._pool = None
     celery_app._backend_cache = None
     celery_app._local.__dict__.pop("backend", None)
+    # `amqp` is a cached_property (stored directly in __dict__) holding the
+    # publish-side Producer/connection machinery -- must be reset too, or
+    # a later real-Redis test module's .delay() can silently publish
+    # through a Producer still bound to *this* module's broker. See
+    # test_process_document_real_redis.py for the full account (found
+    # there, applied back here for the same latent risk).
+    celery_app.__dict__.pop("amqp", None)
     yield
     celery_app.conf.broker_url = original_broker
     celery_app.conf.result_backend = original_backend
     celery_app._pool = None
     celery_app._backend_cache = None
     celery_app._local.__dict__.pop("backend", None)
+    celery_app.__dict__.pop("amqp", None)
 
 
 @pytest.fixture(scope="module")
@@ -103,19 +112,24 @@ def worker_process(redis_available):
         env=env,
     )
 
-    ready = False
-    deadline = time.time() + 30
+    # Continuously drain stdout for the subprocess's whole lifetime, not
+    # just until "ready" -- an undrained OS pipe fills once the worker logs
+    # enough, which blocks the child's next write() and hangs it silently.
+    # See test_process_document_real_redis.py for the fuller account of
+    # this (found there, applied back here for the same latent risk).
     output_lines: list[str] = []
-    while time.time() < deadline:
-        line = process.stdout.readline()
-        if not line:
-            if process.poll() is not None:
-                break
-            continue
-        output_lines.append(line)
-        if "ready" in line.lower():
-            ready = True
-            break
+    ready_event = threading.Event()
+
+    def _drain_output():
+        for line in process.stdout:
+            output_lines.append(line)
+            if "ready" in line.lower():
+                ready_event.set()
+
+    reader_thread = threading.Thread(target=_drain_output, daemon=True)
+    reader_thread.start()
+
+    ready = ready_event.wait(timeout=30)
 
     if not ready:
         process.terminate()
@@ -132,6 +146,7 @@ def worker_process(redis_available):
         process.wait(timeout=10)
     except subprocess.TimeoutExpired:
         process.kill()
+    reader_thread.join(timeout=5)
 
 
 def test_health_check_executes_via_a_real_worker_process(worker_process):

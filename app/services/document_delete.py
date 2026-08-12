@@ -110,6 +110,27 @@ class DocumentDeleteService:
                 "could not be removed."
             ) from error
 
+        if document.extracted_content_path:
+            try:
+                self.storage_service.delete(document.extracted_content_path)
+
+            except (OSError, ValueError):
+                # Non-fatal: the primary file is already gone and the
+                # record is already soft-deleted, so the delete has
+                # meaningfully succeeded from the caller's perspective. The
+                # extracted-content artifact is a derived, less critical
+                # sidecar — log for operator visibility rather than
+                # failing a delete that has otherwise already completed.
+                logger.exception(
+                    "Extracted content cleanup failed",
+                    extra={
+                        "document_id": document.id,
+                        "course_id": document.course_id,
+                        "user_id": user_id,
+                        "extracted_content_path": document.extracted_content_path,
+                    },
+                )
+
         logger.info(
             "Document deletion succeeded",
             extra={

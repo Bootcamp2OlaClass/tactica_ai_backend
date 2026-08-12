@@ -8,21 +8,24 @@ from app.db.base import Base
 
 os.environ.setdefault("JWT_SECRET", "test-secret-key")
 
+# Overridable so a locally-running, unrelated container squatting on the
+# default port (a recurring reality on a shared dev machine) doesn't force
+# editing this file every time — defaults to 5433, unchanged from before.
+TEST_DATABASE_PORT = os.environ.get("TEST_DATABASE_PORT", "5433")
+TEST_DATABASE_URL = (
+    f"postgresql+psycopg2://test_user:test_password@127.0.0.1:"
+    f"{TEST_DATABASE_PORT}/test_database"
+)
+
 
 @pytest.fixture(autouse=True)
 def database_environment(monkeypatch):
     monkeypatch.setenv("DATABASE_HOST", "127.0.0.1")
-    monkeypatch.setenv("DATABASE_PORT", "5433")
+    monkeypatch.setenv("DATABASE_PORT", TEST_DATABASE_PORT)
     monkeypatch.setenv("DATABASE_NAME", "test_database")
     monkeypatch.setenv("DATABASE_USER", "test_user")
     monkeypatch.setenv("DATABASE_PASSWORD", "test_password")
-    monkeypatch.setenv(
-        "DATABASE_URL",
-        (
-            "postgresql+psycopg2://"
-            "test_user:test_password@127.0.0.1:5433/test_database"
-        ),
-    )
+    monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
     monkeypatch.setenv("JWT_SECRET", "test-secret-key")
     # The test client talks over plain http://testserver — a Secure cookie
     # would never round-trip back to the client, unlike a real https deploy.
@@ -37,13 +40,8 @@ def database_environment(monkeypatch):
 
 @pytest.fixture
 def db_session():
-    database_url = (
-        "postgresql+psycopg2://"
-        "test_user:test_password@127.0.0.1:5433/test_database"
-    )
-
     engine = create_engine(
-        database_url,
+        TEST_DATABASE_URL,
         pool_pre_ping=True,
     )
 

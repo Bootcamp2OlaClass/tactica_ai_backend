@@ -23,6 +23,7 @@ from app.models.document import (
 from app.repositories import course_repository
 from app.repositories.document_repository import DocumentRepository
 from app.services.storage import StorageProvider, get_storage_provider
+from app.worker.tasks.documents import process_document
 
 
 logger = logging.getLogger(__name__)
@@ -254,5 +255,27 @@ class DocumentUploadService:
                 "processing_status": document.processing_status.value,
             },
         )
+
+        # Only enqueue after the document's own transaction has committed
+        # (above) — a job must never be able to execute before the row it
+        # operates on is actually visible to other connections (the worker
+        # runs in a separate process/connection entirely).
+        try:
+            process_document.delay(document.id)
+
+        except Exception:
+            # The upload itself fully succeeded (file stored, metadata
+            # persisted) — a queue-publish failure is a separate concern
+            # and must not fail the request. Document stays UPLOADED
+            # (an accurate, recoverable state); POST .../reprocess gives
+            # an explicit retry path once Redis is reachable again.
+            logger.exception(
+                "Failed to enqueue document processing — document remains "
+                "UPLOADED and can be retried via the reprocess endpoint",
+                extra={"document_id": document.id},
+            )
+
+        else:
+            document = self.document_repository.mark_queued(document)
 
         return document

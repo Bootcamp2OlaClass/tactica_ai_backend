@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.document import DocumentType, ProcessingStatus
+from app.models.document import DocumentType, ExtractionMethod, ProcessingStatus
 
 
 class DocumentResponse(BaseModel):
@@ -18,6 +18,10 @@ class DocumentResponse(BaseModel):
     document_type: DocumentType
     processing_status: ProcessingStatus
     processing_error: str | None
+    processed_at: datetime | None
+    extraction_method: ExtractionMethod | None
+    page_count: int | None
+    text_length: int | None
     created_at: datetime
     updated_at: datetime
 

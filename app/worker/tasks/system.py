@@ -25,18 +25,11 @@ exactly-once execution.
 from celery.utils.log import get_task_logger
 
 from app.worker.celery_app import SYSTEM_QUEUE, celery_app
+from app.worker.exceptions import PermanentTaskError, TransientTaskError
 
 logger = get_task_logger(__name__)
 
-
-class TransientTaskError(Exception):
-    """Retryable — represents a transient failure (network blip, temporary
-    external-service outage)."""
-
-
-class PermanentTaskError(Exception):
-    """Not retryable — represents a permanent failure (unsupported input,
-    invalid domain state)."""
+__all__ = ["TransientTaskError", "PermanentTaskError", "health_check"]
 
 
 @celery_app.task(
