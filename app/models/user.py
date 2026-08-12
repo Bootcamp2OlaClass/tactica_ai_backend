@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.document import Document
     from app.models.semester import Semester
 
 
@@ -63,4 +64,8 @@ class User(Base):
 
     semesters: Mapped[list["Semester"]] = relationship(
         back_populates="user",
+    )
+
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="uploader",
     )

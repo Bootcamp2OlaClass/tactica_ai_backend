@@ -7,15 +7,15 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.core.logging import (
-  configure_logging,
-  reset_request_id,
-  set_request_id,
+    configure_logging,
+    reset_request_id,
+    set_request_id,
 )
-
 from app.db.session import validate_database_connection
 from app.routers import auth
 from app.routers import courses
 from app.routers import dashboard
+from app.routers import documents
 from app.routers import test
 from app.routers import rbac_test
 from app.routers import task
@@ -46,10 +46,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 # Routers
 app.include_router(auth.router)
+app.include_router(tasks.router)
 app.include_router(courses.router)
 app.include_router(dashboard.router)
+app.include_router(documents.router)
 app.include_router(test.router)
 app.include_router(rbac_test.router)
 app.include_router(task.router)
@@ -57,7 +60,10 @@ app.include_router(semester.router)
 
 
 @app.middleware("http")
-async def request_logging_middleware(request: Request, call_next):
+async def request_logging_middleware(
+    request: Request,
+    call_next,
+):
     request_id = str(uuid4())
     token = set_request_id(request_id)
     start_time = time.perf_counter()
@@ -66,8 +72,14 @@ async def request_logging_middleware(request: Request, call_next):
         try:
             response = await call_next(request)
         except Exception:
-            duration_ms = round((time.perf_counter() - start_time) * 1000)
-            client_ip = request.client.host if request.client else "unknown"
+            duration_ms = round(
+                (time.perf_counter() - start_time) * 1000
+            )
+            client_ip = (
+                request.client.host
+                if request.client
+                else "unknown"
+            )
 
             request_logger.exception(
                 "%s %s 500 %sms client_ip=%s",
@@ -82,8 +94,14 @@ async def request_logging_middleware(request: Request, call_next):
                 content={"detail": "Internal server error"},
             )
         else:
-            duration_ms = round((time.perf_counter() - start_time) * 1000)
-            client_ip = request.client.host if request.client else "unknown"
+            duration_ms = round(
+                (time.perf_counter() - start_time) * 1000
+            )
+            client_ip = (
+                request.client.host
+                if request.client
+                else "unknown"
+            )
 
             request_logger.info(
                 "%s %s %s %sms client_ip=%s",
