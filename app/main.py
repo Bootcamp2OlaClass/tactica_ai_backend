@@ -4,8 +4,10 @@ import time
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.core.config import settings
 from app.core.logging import (
     configure_logging,
     reset_request_id,
@@ -46,10 +48,17 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(settings.cors_allowed_origins),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Routers
 app.include_router(auth.router)
-app.include_router(tasks.router)
 app.include_router(courses.router)
 app.include_router(dashboard.router)
 app.include_router(documents.router)

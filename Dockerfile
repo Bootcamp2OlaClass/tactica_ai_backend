@@ -16,5 +16,6 @@ COPY . .
 # Backend runs on port 8000
 EXPOSE 8000
 
-# Start the FastAPI server
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Start the FastAPI server (production: no --reload; local dev overrides
+# this command in compose.yaml to add --reload)
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

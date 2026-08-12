@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.document import DocumentStatus
+from app.models.document import ProcessingStatus
 from app.models.task import TaskPriority, TaskStatus, TaskType
 from app.schemas.semester import SemesterResponse
 
@@ -25,7 +25,7 @@ class DashboardDocumentResponse(BaseModel):
     id: int
     course_id: int
     file_name: str
-    status: DocumentStatus
+    status: ProcessingStatus
     created_at: datetime
 
 
