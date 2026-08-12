@@ -27,6 +27,14 @@ class Settings:
     max_upload_size: int
     cors_allowed_origins: tuple[str, ...] = field(default=())
 
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 30
+    password_reset_token_expire_minutes: int = 30
+    email_verification_token_expire_hours: int = 24
+    login_max_failed_attempts: int = 5
+    login_lockout_minutes: int = 15
+    cookie_secure: bool = True
+
 
 def _required_environment_value(name: str) -> str:
     value = os.getenv(name)
@@ -75,6 +83,38 @@ def load_settings() -> Settings:
             "MAX_UPLOAD_SIZE must be greater than 0"
         )
 
+    def _positive_int_env(name: str, default: int) -> int:
+        raw_value = os.getenv(name, str(default)).strip()
+        try:
+            value = int(raw_value)
+        except ValueError as exc:
+            raise ConfigurationError(f"{name} must be an integer") from exc
+        if value <= 0:
+            raise ConfigurationError(f"{name} must be greater than 0")
+        return value
+
+    access_token_expire_minutes = _positive_int_env(
+        "ACCESS_TOKEN_EXPIRE_MINUTES", 15
+    )
+    refresh_token_expire_days = _positive_int_env(
+        "REFRESH_TOKEN_EXPIRE_DAYS", 30
+    )
+    password_reset_token_expire_minutes = _positive_int_env(
+        "PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", 30
+    )
+    email_verification_token_expire_hours = _positive_int_env(
+        "EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS", 24
+    )
+    login_max_failed_attempts = _positive_int_env(
+        "LOGIN_MAX_FAILED_ATTEMPTS", 5
+    )
+    login_lockout_minutes = _positive_int_env("LOGIN_LOCKOUT_MINUTES", 15)
+    cookie_secure = os.getenv("COOKIE_SECURE", "true").strip().lower() not in (
+        "false",
+        "0",
+        "no",
+    )
+
     database_port_value = _required_environment_value("DATABASE_PORT").strip()
     try:
         database_port = int(database_port_value)
@@ -117,6 +157,13 @@ def load_settings() -> Settings:
         upload_dir=upload_dir,
         max_upload_size=max_upload_size,
         cors_allowed_origins=cors_allowed_origins,
+        access_token_expire_minutes=access_token_expire_minutes,
+        refresh_token_expire_days=refresh_token_expire_days,
+        password_reset_token_expire_minutes=password_reset_token_expire_minutes,
+        email_verification_token_expire_hours=email_verification_token_expire_hours,
+        login_max_failed_attempts=login_max_failed_attempts,
+        login_lockout_minutes=login_lockout_minutes,
+        cookie_secure=cookie_secure,
     )
 
 
