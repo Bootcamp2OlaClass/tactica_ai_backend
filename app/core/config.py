@@ -42,6 +42,10 @@ class Settings:
     r2_bucket_name: str | None = None
     r2_endpoint_url: str | None = None
 
+    redis_url: str = "redis://localhost:6379/0"
+    celery_broker_url: str = "redis://localhost:6379/0"
+    celery_result_backend: str = "redis://localhost:6379/0"
+
 
 def _required_environment_value(name: str) -> str:
     value = os.getenv(name)
@@ -140,6 +144,15 @@ def load_settings() -> Settings:
             "R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME"
         )
 
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0").strip()
+    if not redis_url:
+        raise ConfigurationError("REDIS_URL must not be empty")
+
+    celery_broker_url = os.getenv("CELERY_BROKER_URL", redis_url).strip() or redis_url
+    celery_result_backend = (
+        os.getenv("CELERY_RESULT_BACKEND", redis_url).strip() or redis_url
+    )
+
     database_port_value = _required_environment_value("DATABASE_PORT").strip()
     try:
         database_port = int(database_port_value)
@@ -195,6 +208,9 @@ def load_settings() -> Settings:
         r2_secret_access_key=r2_secret_access_key,
         r2_bucket_name=r2_bucket_name,
         r2_endpoint_url=r2_endpoint_url,
+        redis_url=redis_url,
+        celery_broker_url=celery_broker_url,
+        celery_result_backend=celery_result_backend,
     )
 
 

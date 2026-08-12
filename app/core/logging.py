@@ -16,8 +16,10 @@ DEFAULT_APP_LOG_FILE = "app.log"
 DEFAULT_ERROR_LOG_FILE = "error.log"
 DEFAULT_ENABLE_CONSOLE_LOG = "true"
 REQUEST_ID_MISSING = "-"
+TASK_ID_MISSING = "-"
 
 request_id_var: ContextVar[str] = ContextVar("request_id", default=REQUEST_ID_MISSING)
+task_id_var: ContextVar[str] = ContextVar("task_id", default=TASK_ID_MISSING)
 
 SENSITIVE_KEYS = {
     "password",
@@ -58,6 +60,18 @@ def reset_request_id(token) -> None:
     request_id_var.reset(token)
 
 
+def get_task_id() -> str:
+    return task_id_var.get()
+
+
+def set_task_id(task_id: str):
+    return task_id_var.set(task_id)
+
+
+def reset_task_id(token) -> None:
+    task_id_var.reset(token)
+
+
 def sanitize_sensitive_data(value: Any) -> Any:
     if isinstance(value, dict):
         return {
@@ -83,6 +97,7 @@ def sanitize_sensitive_data(value: Any) -> Any:
 class RequestContextFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.request_id = get_request_id()
+        record.task_id = get_task_id()
         return True
 
 
@@ -105,9 +120,13 @@ class UTCRequestFormatter(logging.Formatter):
         timestamp = self.formatTime(record)
         module_name = sanitize_sensitive_data(record.name)
         message = record.message
+
+        task_id = getattr(record, "task_id", TASK_ID_MISSING)
+        task_segment = f" [task_id={task_id}]" if task_id != TASK_ID_MISSING else ""
+
         formatted = (
-            f"{timestamp} {record.levelname} [request_id={record.request_id}] "
-            f"[module={module_name}] {message}"
+            f"{timestamp} {record.levelname} [request_id={record.request_id}]"
+            f"{task_segment} [module={module_name}] {message}"
         )
 
         if record.exc_info:
