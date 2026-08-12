@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from app.api.auth import get_current_user
 from app.main import app
-from app.models.document import DocumentStatus
+from app.models.document import ProcessingStatus
 from app.models.semester import SemesterStatus
 from app.models.task import TaskPriority, TaskStatus, TaskType
 from app.routers.dashboard import get_dashboard_service
@@ -50,7 +50,7 @@ def make_summary() -> dict[str, object]:
                 id=21,
                 course_id=5,
                 file_name="syllabus.pdf",
-                status=DocumentStatus.COMPLETED,
+                status=ProcessingStatus.COMPLETED,
                 created_at=datetime(
                     2026, 8, 8, 8, 0, tzinfo=timezone.utc
                 ),

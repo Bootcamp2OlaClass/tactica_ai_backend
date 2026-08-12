@@ -25,6 +25,7 @@ class Settings:
 
     upload_dir: str
     max_upload_size: int
+    cors_allowed_origins: tuple[str, ...] = field(default=())
 
 
 def _required_environment_value(name: str) -> str:
@@ -52,6 +53,15 @@ def load_settings() -> Settings:
 
     if not upload_dir:
         raise ConfigurationError("UPLOAD_DIR must not be empty")
+
+    cors_allowed_origins = tuple(
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ALLOWED_ORIGINS",
+            "http://localhost:3000",
+        ).split(",")
+        if origin.strip()
+    )
 
     try:
         max_upload_size = int(max_upload_size_value)
@@ -106,6 +116,7 @@ def load_settings() -> Settings:
         JWT_SECRET=jwt_secret,
         upload_dir=upload_dir,
         max_upload_size=max_upload_size,
+        cors_allowed_origins=cors_allowed_origins,
     )
 
 

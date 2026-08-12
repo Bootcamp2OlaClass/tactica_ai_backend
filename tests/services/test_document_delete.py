@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import logging
-from sqlachemy.orm import Session
+from sqlalchemy.orm import Session
 
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
