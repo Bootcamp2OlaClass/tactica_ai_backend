@@ -19,6 +19,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.course import Course
+    from app.models.extraction_candidate import ExtractionCandidate
     from app.models.task import Task
     from app.models.user import User
 
@@ -44,6 +45,21 @@ class ExtractionMethod(str, Enum):
     NATIVE = "NATIVE"
     OCR = "OCR"  # reserved for when OCR is actually implemented — see Phase 05 notes
     UNSUPPORTED = "UNSUPPORTED"  # OCR would be required but isn't available yet
+
+
+class LLMExtractionStatus(str, Enum):
+    """The LLM structured-extraction sub-pipeline (Phase 06) — deliberately
+    a separate state machine from ProcessingStatus (Phase 05's deterministic
+    text extraction). A document can be ProcessingStatus.COMPLETED and
+    LLMExtractionStatus.NOT_REQUESTED at the same time; extraction is an
+    explicit, separately-triggered (and API-cost-incurring) step, not
+    auto-chained onto upload."""
+
+    NOT_REQUESTED = "NOT_REQUESTED"
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
 
 
 class Document(Base):
@@ -160,6 +176,22 @@ class Document(Base):
         default=None,
     )
 
+    llm_extraction_status: Mapped[LLMExtractionStatus] = mapped_column(
+        SQLEnum(
+            LLMExtractionStatus,
+            name="llmextractionstatus",
+        ),
+        nullable=False,
+        default=LLMExtractionStatus.NOT_REQUESTED,
+        server_default=LLMExtractionStatus.NOT_REQUESTED.value,
+    )
+
+    llm_extraction_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        default=None,
+    )
+
     is_deleted: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -197,4 +229,8 @@ class Document(Base):
 
     source_tasks: Mapped[list["Task"]] = relationship(
         back_populates="source_document",
+    )
+
+    extraction_candidates: Mapped[list["ExtractionCandidate"]] = relationship(
+        back_populates="document",
     )

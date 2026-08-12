@@ -46,6 +46,12 @@ class Settings:
     celery_broker_url: str = "redis://localhost:6379/0"
     celery_result_backend: str = "redis://localhost:6379/0"
 
+    llm_provider: str | None = None
+    gemini_api_key: str | None = field(default=None, repr=False)
+    gemini_model: str = "gemini-2.0-flash"
+    openai_api_key: str | None = field(default=None, repr=False)
+    openai_model: str = "gpt-4o-mini"
+
 
 def _required_environment_value(name: str) -> str:
     value = os.getenv(name)
@@ -153,6 +159,20 @@ def load_settings() -> Settings:
         os.getenv("CELERY_RESULT_BACKEND", redis_url).strip() or redis_url
     )
 
+    llm_provider = os.getenv("LLM_PROVIDER", "").strip().lower() or None
+    if llm_provider is not None and llm_provider not in ("gemini", "openai"):
+        raise ConfigurationError("LLM_PROVIDER must be 'gemini' or 'openai' if set")
+
+    gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip() or None
+    gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
+    openai_api_key = os.getenv("OPENAI_API_KEY", "").strip() or None
+    openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+
+    if llm_provider == "gemini" and not gemini_api_key:
+        raise ConfigurationError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
+    if llm_provider == "openai" and not openai_api_key:
+        raise ConfigurationError("LLM_PROVIDER=openai requires OPENAI_API_KEY")
+
     database_port_value = _required_environment_value("DATABASE_PORT").strip()
     try:
         database_port = int(database_port_value)
@@ -211,6 +231,11 @@ def load_settings() -> Settings:
         redis_url=redis_url,
         celery_broker_url=celery_broker_url,
         celery_result_backend=celery_result_backend,
+        llm_provider=llm_provider,
+        gemini_api_key=gemini_api_key,
+        gemini_model=gemini_model,
+        openai_api_key=openai_api_key,
+        openai_model=openai_model,
     )
 
 

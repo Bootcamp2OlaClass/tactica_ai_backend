@@ -7,6 +7,7 @@ from app.models.document import (
     Document,
     DocumentType,
     ExtractionMethod,
+    LLMExtractionStatus,
     ProcessingStatus,
 )
 
@@ -18,6 +19,13 @@ _CLAIMABLE_STATUSES = (
     ProcessingStatus.UPLOADED,
     ProcessingStatus.QUEUED,
     ProcessingStatus.FAILED,
+)
+
+# Same claim pattern, for the Phase 06 LLM-extraction sub-pipeline.
+_CLAIMABLE_EXTRACTION_STATUSES = (
+    LLMExtractionStatus.NOT_REQUESTED,
+    LLMExtractionStatus.QUEUED,
+    LLMExtractionStatus.FAILED,
 )
 
 
@@ -270,4 +278,44 @@ class DocumentRepository:
         self.db.commit()
         self.db.refresh(document)
 
+        return document
+
+    # --- Phase 06: LLM extraction sub-pipeline (mirrors the Phase 05
+    # methods above exactly -- same atomic-claim reasoning applies) -------
+
+    def try_start_extraction(self, document_id: int) -> bool:
+        result = self.db.execute(
+            update(Document)
+            .where(
+                Document.id == document_id,
+                Document.is_deleted.is_(False),
+                Document.llm_extraction_status.in_(_CLAIMABLE_EXTRACTION_STATUSES),
+            )
+            .values(
+                llm_extraction_status=LLMExtractionStatus.PROCESSING,
+                llm_extraction_error=None,
+            )
+        )
+        self.db.commit()
+
+        return result.rowcount == 1
+
+    def mark_extraction_queued(self, document: Document) -> Document:
+        document.llm_extraction_status = LLMExtractionStatus.QUEUED
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    def mark_extraction_completed(self, document: Document) -> Document:
+        document.llm_extraction_status = LLMExtractionStatus.COMPLETED
+        document.llm_extraction_error = None
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    def mark_extraction_failed(self, document: Document, error_message: str) -> Document:
+        document.llm_extraction_status = LLMExtractionStatus.FAILED
+        document.llm_extraction_error = error_message
+        self.db.commit()
+        self.db.refresh(document)
         return document

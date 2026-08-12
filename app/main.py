@@ -19,6 +19,7 @@ from app.routers import auth
 from app.routers import courses
 from app.routers import dashboard
 from app.routers import documents
+from app.routers import extraction
 from app.routers import test
 from app.routers import rbac_test
 from app.routers import task
@@ -63,6 +64,7 @@ app.include_router(auth.router)
 app.include_router(courses.router)
 app.include_router(dashboard.router)
 app.include_router(documents.router)
+app.include_router(extraction.router)
 app.include_router(test.router)
 app.include_router(rbac_test.router)
 app.include_router(task.router)

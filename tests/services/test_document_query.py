@@ -9,7 +9,7 @@ from app.exceptions.document import (
     DocumentFileMissingError,
     DocumentNotFoundError,
 )
-from app.models.document import DocumentType, ProcessingStatus
+from app.models.document import DocumentType, LLMExtractionStatus, ProcessingStatus
 from app.services.document_query import DocumentQueryService
 
 
@@ -38,6 +38,8 @@ def make_document(
         extraction_method=None,
         page_count=None,
         text_length=None,
+        llm_extraction_status=LLMExtractionStatus.NOT_REQUESTED,
+        llm_extraction_error=None,
         created_at=now,
         updated_at=now,
         is_deleted=False,

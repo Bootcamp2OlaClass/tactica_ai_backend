@@ -2,7 +2,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.document import DocumentType, ExtractionMethod, ProcessingStatus
+from app.models.document import (
+    DocumentType,
+    ExtractionMethod,
+    LLMExtractionStatus,
+    ProcessingStatus,
+)
 
 
 class DocumentResponse(BaseModel):
@@ -22,6 +27,8 @@ class DocumentResponse(BaseModel):
     extraction_method: ExtractionMethod | None
     page_count: int | None
     text_length: int | None
+    llm_extraction_status: LLMExtractionStatus
+    llm_extraction_error: str | None
     created_at: datetime
     updated_at: datetime
 

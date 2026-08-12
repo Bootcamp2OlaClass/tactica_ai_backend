@@ -44,7 +44,11 @@ celery_app = Celery(
     "tactica_ai",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.worker.tasks.system", "app.worker.tasks.documents"],
+    include=[
+        "app.worker.tasks.system",
+        "app.worker.tasks.documents",
+        "app.worker.tasks.extraction",
+    ],
 )
 
 celery_app.conf.update(
@@ -108,3 +112,4 @@ def _reset_task_logging_context(task_id=None, **_kwargs) -> None:
 # actually imported to register decorated tasks. Import explicitly here too.
 import app.worker.tasks.system  # noqa: E402,F401
 import app.worker.tasks.documents  # noqa: E402,F401
+import app.worker.tasks.extraction  # noqa: E402,F401

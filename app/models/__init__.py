@@ -6,6 +6,7 @@ from app.models.semester import Semester
 from app.models.refresh_token import RefreshToken
 from app.models.password_reset_token import PasswordResetToken
 from app.models.email_verification_token import EmailVerificationToken
+from app.models.extraction_candidate import ExtractionCandidate
 
 __all__ = [
     "User",
@@ -16,4 +17,5 @@ __all__ = [
     "RefreshToken",
     "PasswordResetToken",
     "EmailVerificationToken",
+    "ExtractionCandidate",
 ]
