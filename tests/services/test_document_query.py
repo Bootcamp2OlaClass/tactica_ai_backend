@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -169,10 +168,10 @@ def test_get_document_download_returns_file_and_document():
     repository = MagicMock()
     storage = MagicMock()
     document = make_document()
-    file_path = Path("/tmp/uploads/file.pdf")
+    file_content = b"%PDF-1.4 fake content"
 
     repository.get_active_by_id.return_value = document
-    storage.get_existing_file.return_value = file_path
+    storage.load.return_value = file_content
 
     service = DocumentQueryService(
         db=MagicMock(),
@@ -184,14 +183,14 @@ def test_get_document_download_returns_file_and_document():
         "app.services.document_query.course_repository.get_course_by_id",
         return_value=SimpleNamespace(id=10),
     ):
-        result_path, result_document = service.get_document_download(
+        result_content, result_document = service.get_document_download(
             document_id=1,
             user_id=5,
         )
 
-    assert result_path == file_path
+    assert result_content == file_content
     assert result_document is document
-    storage.get_existing_file.assert_called_once_with(
+    storage.load.assert_called_once_with(
         document.storage_path
     )
 
@@ -202,7 +201,7 @@ def test_get_document_download_raises_controlled_error_when_file_missing():
     document = make_document()
 
     repository.get_active_by_id.return_value = document
-    storage.get_existing_file.side_effect = FileNotFoundError
+    storage.load.side_effect = FileNotFoundError
 
     service = DocumentQueryService(
         db=MagicMock(),

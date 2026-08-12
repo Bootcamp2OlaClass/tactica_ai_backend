@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import NoReturn
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -12,7 +13,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
@@ -88,6 +89,17 @@ def get_document_delete_service(
     db: Session = Depends(get_db),
 ) -> DocumentDeleteService:
     return DocumentDeleteService(db)
+
+
+def _content_disposition_header(filename: str) -> str:
+    # Mirrors Starlette's FileResponse: only use the raw quoted-string form
+    # when the filename survives URL-quoting unchanged (i.e. contains no
+    # characters — quotes, CRLF, non-ASCII — that would need encoding or
+    # could otherwise break out of the header value).
+    quoted_filename = quote(filename)
+    if quoted_filename != filename:
+        return f"attachment; filename*=utf-8''{quoted_filename}"
+    return f'attachment; filename="{filename}"'
 
 
 def raise_document_http_exception(
@@ -282,7 +294,7 @@ def get_document(
 
 @router.get(
     "/documents/{document_id}/download",
-    response_class=FileResponse,
+    response_class=Response,
     status_code=status.HTTP_200_OK,
     responses=DOCUMENT_ERROR_RESPONSES,
 )
@@ -297,17 +309,21 @@ def download_document(
     service: DocumentQueryService = Depends(
         get_document_query_service
     ),
-) -> FileResponse:
+) -> Response:
     try:
-        file_path, document = service.get_document_download(
+        file_content, document = service.get_document_download(
             document_id=document_id,
             user_id=current_user.id,
         )
 
-        return FileResponse(
-            path=file_path,
+        return Response(
+            content=file_content,
             media_type=document.mime_type,
-            filename=document.original_file_name,
+            headers={
+                "Content-Disposition": _content_disposition_header(
+                    document.original_file_name
+                ),
+            },
         )
 
     except DocumentError as error:
