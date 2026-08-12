@@ -10,7 +10,7 @@ from app.exceptions.document import (
 )
 from app.repositories import course_repository
 from app.repositories.document_repository import DocumentRepository
-from app.services.storage import LocalStorageService
+from app.services.storage import StorageProvider, get_storage_provider
 
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class DocumentDeleteService:
         self,
         db: Session,
         document_repository: DocumentRepository | None = None,
-        storage_service: LocalStorageService | None = None,
+        storage_service: StorageProvider | None = None,
     ) -> None:
         self.db = db
 
@@ -34,7 +34,7 @@ class DocumentDeleteService:
         self.storage_service = (
             storage_service
             if storage_service is not None
-            else LocalStorageService(settings.upload_dir)
+            else get_storage_provider(settings)
         )
 
     def delete_document(

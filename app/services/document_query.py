@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime
 from math import ceil
-from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -22,7 +21,7 @@ from app.schemas.document import (
     DocumentListResponse,
     DocumentResponse,
 )
-from app.services.storage import LocalStorageService
+from app.services.storage import StorageProvider, get_storage_provider
 
 
 logger = logging.getLogger(__name__)
@@ -33,7 +32,7 @@ class DocumentQueryService:
         self,
         db: Session,
         document_repository: DocumentRepository | None = None,
-        storage_service: LocalStorageService | None = None,
+        storage_service: StorageProvider | None = None,
     ) -> None:
         self.db = db
 
@@ -46,7 +45,7 @@ class DocumentQueryService:
         self.storage_service = (
             storage_service
             if storage_service is not None
-            else LocalStorageService(settings.upload_dir)
+            else get_storage_provider(settings)
         )
 
     def _get_owned_course(
@@ -145,14 +144,14 @@ class DocumentQueryService:
         *,
         document_id: int,
         user_id: int,
-    ) -> tuple[Path, Document]:
+    ) -> tuple[bytes, Document]:
         document = self.get_document(
             document_id=document_id,
             user_id=user_id,
         )
 
         try:
-            file_path = self.storage_service.get_existing_file(
+            file_content = self.storage_service.load(
                 document.storage_path,
             )
 
@@ -195,4 +194,4 @@ class DocumentQueryService:
             },
         )
 
-        return file_path, document
+        return file_content, document

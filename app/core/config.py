@@ -35,6 +35,13 @@ class Settings:
     login_lockout_minutes: int = 15
     cookie_secure: bool = True
 
+    storage_provider: str = "local"
+    r2_account_id: str | None = field(default=None, repr=False)
+    r2_access_key_id: str | None = field(default=None, repr=False)
+    r2_secret_access_key: str | None = field(default=None, repr=False)
+    r2_bucket_name: str | None = None
+    r2_endpoint_url: str | None = None
+
 
 def _required_environment_value(name: str) -> str:
     value = os.getenv(name)
@@ -115,6 +122,24 @@ def load_settings() -> Settings:
         "no",
     )
 
+    storage_provider = os.getenv("STORAGE_PROVIDER", "local").strip().lower()
+    if storage_provider not in ("local", "r2"):
+        raise ConfigurationError("STORAGE_PROVIDER must be 'local' or 'r2'")
+
+    r2_account_id = os.getenv("R2_ACCOUNT_ID", "").strip() or None
+    r2_access_key_id = os.getenv("R2_ACCESS_KEY_ID", "").strip() or None
+    r2_secret_access_key = os.getenv("R2_SECRET_ACCESS_KEY", "").strip() or None
+    r2_bucket_name = os.getenv("R2_BUCKET_NAME", "").strip() or None
+    r2_endpoint_url = os.getenv("R2_ENDPOINT_URL", "").strip() or None
+
+    if storage_provider == "r2" and not all(
+        [r2_account_id, r2_access_key_id, r2_secret_access_key, r2_bucket_name]
+    ):
+        raise ConfigurationError(
+            "STORAGE_PROVIDER=r2 requires R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, "
+            "R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME"
+        )
+
     database_port_value = _required_environment_value("DATABASE_PORT").strip()
     try:
         database_port = int(database_port_value)
@@ -164,6 +189,12 @@ def load_settings() -> Settings:
         login_max_failed_attempts=login_max_failed_attempts,
         login_lockout_minutes=login_lockout_minutes,
         cookie_secure=cookie_secure,
+        storage_provider=storage_provider,
+        r2_account_id=r2_account_id,
+        r2_access_key_id=r2_access_key_id,
+        r2_secret_access_key=r2_secret_access_key,
+        r2_bucket_name=r2_bucket_name,
+        r2_endpoint_url=r2_endpoint_url,
     )
 
 
