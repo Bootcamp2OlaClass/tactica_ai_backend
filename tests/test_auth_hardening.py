@@ -217,6 +217,36 @@ def test_password_reset_end_to_end_changes_password_and_revokes_sessions(
     assert reuse_response.status_code == 400
 
 
+def test_password_reset_clears_an_existing_login_lockout(client, db_session):
+    register(client)
+    for _ in range(5):
+        client.post(
+            "/auth/login",
+            json={"email": "student@example.com", "password": "wrong-password"},
+        )
+    user = db_session.query(User).filter(User.email == "student@example.com").first()
+    assert user.locked_until is not None
+
+    from app.services.token_service import create_password_reset_token
+
+    raw_token = create_password_reset_token(db_session, user.id)
+    confirm_response = client.post(
+        "/auth/password-reset/confirm",
+        json={"token": raw_token, "new_password": "BrandNewPassw0rd!"},
+    )
+    assert confirm_response.status_code == 200
+
+    login_response = client.post(
+        "/auth/login",
+        json={"email": "student@example.com", "password": "BrandNewPassw0rd!"},
+    )
+    assert login_response.status_code == 200
+
+    db_session.refresh(user)
+    assert user.locked_until is None
+    assert user.failed_login_attempts == 0
+
+
 def test_email_verification_end_to_end(client, db_session):
     register_response = register(client)
     access_token = register_response.json()["access_token"]

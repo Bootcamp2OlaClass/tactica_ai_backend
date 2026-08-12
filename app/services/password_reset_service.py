@@ -41,6 +41,10 @@ def confirm_password_reset(db: Session, raw_token: str, new_password: str) -> bo
         return False
 
     user.password_hash = hash_password(new_password)
+    # A successful email-based reset proves ownership more strongly than a
+    # password attempt does — don't leave the account locked out afterward.
+    user.failed_login_attempts = 0
+    user.locked_until = None
     db.add(user)
     db.commit()
 
