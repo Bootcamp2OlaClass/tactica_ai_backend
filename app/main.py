@@ -3,6 +3,7 @@ import logging
 import time
 from uuid import uuid4
 
+import redis
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -134,4 +135,21 @@ def root():
 
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    # Redis/worker availability is reported here for operator visibility but
+    # deliberately does NOT affect this endpoint's status or status code —
+    # background-job infrastructure is optional for the app to be "up";
+    # synchronous CRUD works with no worker running at all. See
+    # PHASE_04_BACKGROUND_JOBS.md "Health checks" for the reasoning.
+    redis_status = "unreachable"
+    try:
+        client = redis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+        if client.ping():
+            redis_status = "connected"
+    except Exception:
+        redis_status = "unreachable"
+
+    return {"status": "healthy", "redis": redis_status}

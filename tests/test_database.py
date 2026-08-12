@@ -198,7 +198,7 @@ def test_failed_connectivity_validation_is_safe(
     get_settings.cache_clear()
 
 
-def test_health_endpoint_remains_unchanged(monkeypatch):
+def test_health_endpoint_reports_database_and_redis_status(monkeypatch):
     import app.main as main
 
     main = importlib.reload(main)
@@ -211,9 +211,39 @@ def test_health_endpoint_remains_unchanged(monkeypatch):
         connectivity_check,
     )
 
+    redis_client = MagicMock()
+    redis_client.ping.return_value = True
+    monkeypatch.setattr(main.redis, "from_url", MagicMock(return_value=redis_client))
+
     with TestClient(main.app) as client:
         response = client.get("/health")
 
     connectivity_check.assert_called_once_with()
     assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
+    assert response.json() == {"status": "healthy", "redis": "connected"}
+
+
+def test_health_endpoint_stays_healthy_when_redis_is_unreachable(monkeypatch):
+    import app.main as main
+
+    main = importlib.reload(main)
+
+    monkeypatch.setattr(
+        main,
+        "validate_database_connection",
+        MagicMock(),
+    )
+
+    def _raise_connection_error(*args, **kwargs):
+        raise ConnectionError("redis unreachable")
+
+    monkeypatch.setattr(main.redis, "from_url", _raise_connection_error)
+
+    with TestClient(main.app) as client:
+        response = client.get("/health")
+
+    # Redis being down must not make the app report unhealthy or fail to
+    # respond -- background-job infrastructure is optional, synchronous
+    # CRUD works with no worker/Redis running at all.
+    assert response.status_code == 200
+    assert response.json() == {"status": "healthy", "redis": "unreachable"}
