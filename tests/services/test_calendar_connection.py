@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+from sqlalchemy import text
+
 from app.models.calendar import CalendarConnection
 from app.services.calendar_connection import CalendarConnectionService
 from app.services.calendar_oauth import TokenSet
@@ -70,3 +72,19 @@ def test_disconnect_when_never_connected_is_a_noop(db_session):
     service.disconnect(user_id=user.id)  # must not raise
 
     assert service.is_connected(user_id=user.id) is False
+
+
+def test_tokens_are_encrypted_at_rest_not_stored_as_plaintext(db_session):
+    user, _ = create_user_with_course(db_session, email_prefix="cal-conn-encrypted")
+    service = _build_service(db_session)
+    service.connect(user_id=user.id, code="auth-code")
+
+    # Bypass the ORM/TypeDecorator entirely and read the raw column value,
+    # the way a DB dump/leak would expose it -- it must not be "at-1".
+    raw_access_token = db_session.execute(
+        text("SELECT access_token FROM calendar_connections WHERE user_id = :uid"),
+        {"uid": user.id},
+    ).scalar_one()
+
+    assert raw_access_token != "at-1"
+    assert "at-1" not in raw_access_token

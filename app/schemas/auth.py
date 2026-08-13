@@ -35,3 +35,6 @@ class EmailVerificationConfirmSchema(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
+
+class AccountDeletionRequest(BaseModel):
+    password: str

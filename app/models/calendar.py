@@ -2,10 +2,9 @@
 
 `CalendarConnection` holds the student's OAuth tokens (Calendar scope
 only, independent of ADR-001's identity/login decision). Tokens are
-stored as plain columns for now, same as `RefreshToken`'s current
-storage — this phase's own Security note calls for encryption at rest
-"per Phase 14 standards," which don't exist yet; tracked explicitly as a
-gap here and in `BACKLOG.md`, not silently skipped.
+encrypted at rest (Phase 14, see app/core/token_encryption.py) —
+transparent to every read/write call site, since EncryptedText decrypts
+on load and encrypts on save.
 
 `CalendarSync` is the idempotency anchor: one row per synced `Task`,
 keyed by the provider's own event id. `CalendarSyncService` (see
@@ -21,6 +20,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.token_encryption import EncryptedText
 from app.db.base import Base
 
 if TYPE_CHECKING:
@@ -44,8 +44,8 @@ class CalendarConnection(Base):
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    access_token: Mapped[str] = mapped_column(Text, nullable=False)
-    refresh_token: Mapped[str] = mapped_column(Text, nullable=False)
+    access_token: Mapped[str] = mapped_column(EncryptedText, nullable=False)
+    refresh_token: Mapped[str] = mapped_column(EncryptedText, nullable=False)
     token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     connected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

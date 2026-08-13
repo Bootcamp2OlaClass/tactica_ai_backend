@@ -99,8 +99,9 @@ def login_user(
         .first()
     )
 
-    #User does not exist
-    if not user:
+    #User does not exist, or the account was deleted (same response as
+    #nonexistent so deletion status can't be enumerated via login attempts)
+    if not user or user.deleted_at is not None:
         raise invalid_credentials
 
     if user.locked_until is not None and user.locked_until > _now():

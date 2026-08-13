@@ -1,7 +1,15 @@
+from app.api.authorization import require_roles
 from app.db.session import get_db
 from app.main import app
 from app.models.email_verification_token import EmailVerificationToken
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.routers.auth import (
+    login_rate_limit,
+    password_reset_rate_limit,
+    register_rate_limit,
+    verify_email_resend_rate_limit,
+)
+from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
@@ -11,7 +19,19 @@ def client(db_session):
     def override_get_db():
         yield db_session
 
+    def _no_rate_limit():
+        return None
+
     app.dependency_overrides[get_db] = override_get_db
+    # These tests exercise auth *logic*, not the rate limiter itself (that
+    # has its own dedicated tests in test_rate_limiting.py) — without this
+    # override, every test in this file would share one Redis counter keyed
+    # by TestClient's fixed "testclient" host and could trip 429s depending
+    # on run order/count, which isn't what any of these tests are about.
+    app.dependency_overrides[register_rate_limit] = _no_rate_limit
+    app.dependency_overrides[login_rate_limit] = _no_rate_limit
+    app.dependency_overrides[password_reset_rate_limit] = _no_rate_limit
+    app.dependency_overrides[verify_email_resend_rate_limit] = _no_rate_limit
     test_client = TestClient(app, raise_server_exceptions=False)
 
     yield test_client
@@ -288,11 +308,24 @@ def test_email_verification_confirm_with_invalid_token_fails(client):
 
 
 def test_rbac_denies_non_admin_user(db_session):
+    # require_roles() has no production caller yet (no admin-only endpoint
+    # exists in the real API surface), so this exercises the dependency
+    # directly against a throwaway app rather than a real router — see
+    # BUGS.md 2026-08-13 for why the old /rbac/admin-only test route was
+    # removed from app.main instead of kept around for this test alone.
+    probe_app = FastAPI()
+
+    @probe_app.get("/admin-only")
+    def admin_only(current_user: User = Depends(require_roles(UserRole.ADMIN))):
+        return {"user_id": current_user.id}
+
     def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    probe_app.dependency_overrides[get_db] = override_get_db
     test_client = TestClient(app, raise_server_exceptions=False)
+    probe_client = TestClient(probe_app, raise_server_exceptions=False)
 
     register(test_client)
 
@@ -302,11 +335,113 @@ def test_rbac_denies_non_admin_user(db_session):
     )
     access_token = login_response.json()["access_token"]
 
-    response = test_client.get(
-        "/rbac/admin-only", headers={"Authorization": f"Bearer {access_token}"}
+    response = probe_client.get(
+        "/admin-only", headers={"Authorization": f"Bearer {access_token}"}
     )
 
     test_client.close()
+    probe_client.close()
     app.dependency_overrides.clear()
 
     assert response.status_code == 403
+
+
+def test_account_deletion_requires_correct_password(client):
+    register_response = register(client)
+    access_token = register_response.json()["access_token"]
+
+    response = client.request(
+        "DELETE",
+        "/auth/account",
+        json={"password": "wrong-password"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_account_deletion_anonymizes_and_revokes_sessions(client, db_session):
+    register_response = register(client)
+    access_token = register_response.json()["access_token"]
+    original_refresh_cookie = client.cookies.get("refresh_token")
+
+    response = client.request(
+        "DELETE",
+        "/auth/account",
+        json={"password": "Sup3rSecret!"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == 200
+    assert "refresh_token" not in response.cookies
+
+    user = db_session.query(User).first()
+    assert user.deleted_at is not None
+    assert user.email != "student@example.com"
+    assert user.full_name == "Deleted User"
+
+    # The now-stale access token must stop working immediately, not just
+    # after its natural expiry — deleted_at is checked on every request.
+    me_response = client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {access_token}"}
+    )
+    assert me_response.status_code == 401
+
+    # The refresh token issued before deletion must be revoked too.
+    client.cookies.set("refresh_token", original_refresh_cookie)
+    refresh_response = client.post("/auth/refresh")
+    assert refresh_response.status_code == 401
+
+    # Logging in with the old (pre-anonymization) email must fail exactly
+    # like a nonexistent account — deletion status isn't distinguishable.
+    login_response = client.post(
+        "/auth/login",
+        json={"email": "student@example.com", "password": "Sup3rSecret!"},
+    )
+    assert login_response.status_code == 401
+
+
+def test_account_deletion_frees_email_for_reregistration(client):
+    register(client)
+    login_response = client.post(
+        "/auth/login",
+        json={"email": "student@example.com", "password": "Sup3rSecret!"},
+    )
+    access_token = login_response.json()["access_token"]
+
+    client.request(
+        "DELETE",
+        "/auth/account",
+        json={"password": "Sup3rSecret!"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    re_register_response = register(client)
+    assert re_register_response.status_code == 200
+
+
+def test_account_deletion_twice_fails_because_token_is_already_dead(client):
+    # A deleted account can't authenticate at all (see the deleted_at check
+    # in get_current_user), so this can never reach delete_account's own
+    # "already deleted" 409 branch through the API — that branch only
+    # guards direct/internal callers. Documented here so the dead-looking
+    # path in account_deletion_service.py isn't mistaken for unreachable
+    # dead code and removed.
+    register_response = register(client)
+    access_token = register_response.json()["access_token"]
+
+    client.request(
+        "DELETE",
+        "/auth/account",
+        json={"password": "Sup3rSecret!"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    second_response = client.request(
+        "DELETE",
+        "/auth/account",
+        json={"password": "Sup3rSecret!"},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert second_response.status_code == 401

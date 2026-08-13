@@ -10,7 +10,7 @@ from app.api.auth import get_current_user
 from app.exceptions.chat import ChatNotAvailableError, ConversationNotFoundError
 from app.main import app
 from app.models.message import MessageRole
-from app.routers.chat import get_chat_query_service, get_chat_service
+from app.routers.chat import chat_rate_limit, get_chat_query_service, get_chat_service
 from app.services.chat import ChatService
 from app.services.chat_query import ChatQueryService
 from app.services.llm import LLMExtractionError, LLMTransientError
@@ -57,6 +57,11 @@ def client(chat_service, chat_query_service):
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=42)
     app.dependency_overrides[get_chat_service] = lambda: chat_service
     app.dependency_overrides[get_chat_query_service] = lambda: chat_query_service
+    # This file tests chat *logic* against a mocked service, not the rate
+    # limiter (that has its own coverage in test_rate_limiting.py) --
+    # without this override every test here would share one Redis counter
+    # keyed by the fixed user id=42 override above.
+    app.dependency_overrides[chat_rate_limit] = lambda: None
     test_client = TestClient(app, raise_server_exceptions=False)
 
     yield test_client

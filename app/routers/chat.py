@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
+from app.api.rate_limit import user_rate_limiter
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.exceptions.chat import ChatNotAvailableError, ConversationNotFoundError
@@ -26,6 +27,10 @@ from app.services.llm import LLMExtractionError, LLMTransientError
 router = APIRouter(
     prefix="/api/v1",
     tags=["Chat"],
+)
+
+chat_rate_limit = user_rate_limiter(
+    key_prefix="chat", max_requests=20, window_seconds=60
 )
 
 CHAT_ERROR_RESPONSES = {
@@ -75,6 +80,7 @@ def send_chat_message(
     body: ChatRequest,
     current_user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
+    _rate_limit: None = Depends(chat_rate_limit),
 ) -> ChatResponse:
     try:
         conversation, message = service.send_message(
@@ -105,6 +111,7 @@ def stream_chat_message(
     body: ChatRequest,
     current_user: User = Depends(get_current_user),
     service: ChatService = Depends(get_chat_service),
+    _rate_limit: None = Depends(chat_rate_limit),
 ) -> StreamingResponse:
     """Same pipeline as POST /chat, streamed as Server-Sent Events.
 

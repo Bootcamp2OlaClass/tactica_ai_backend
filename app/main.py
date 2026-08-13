@@ -27,8 +27,6 @@ from app.routers import notification
 from app.routers import rag
 from app.routers import recovery_plan
 from app.routers import roadmap
-from app.routers import test
-from app.routers import rbac_test
 from app.routers import task
 from app.routers import semester
 
@@ -79,8 +77,6 @@ app.include_router(notification.router)
 app.include_router(rag.router)
 app.include_router(recovery_plan.router)
 app.include_router(roadmap.router)
-app.include_router(test.router)
-app.include_router(rbac_test.router)
 app.include_router(task.router)
 app.include_router(semester.router)
 
