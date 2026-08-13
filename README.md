@@ -28,12 +28,14 @@ Backend service for **Tactica AI**, an AI-powered academic planning platform tha
 | Language | Python 3.12 |
 | Database | PostgreSQL + pgvector |
 | ORM | SQLAlchemy |
-| AI | LangChain, LlamaIndex |
-| LLM | Gemini / OpenAI |
-| Authentication | Clerk |
+| AI / RAG | Hand-rolled retrieval directly against pgvector — no LangChain/LlamaIndex (ADR-003) |
+| LLM | Gemini (default) / OpenAI, behind a shared `LLMProvider` interface (ADR-002) |
+| Authentication | Custom hardened JWT (refresh rotation, lockout, password reset, email verification) — **not** Clerk (ADR-001) |
 | Background Jobs | Celery + Redis |
-| Storage | Cloudflare R2 |
-| Deployment | Railway |
+| Storage | `StorageProvider` abstraction — local disk (dev default) or Cloudflare R2 |
+| Deployment | Not yet decided/deployed — ADR-009 (`PROPOSED`); local `docker compose` only today |
+
+See `docs/ARCHITECTURE.md` for the full system design. The ADRs referenced above (architecture decision records with full context/options/reasoning) live in this project's internal engineering workspace, not in this repository, so aren't linked directly here.
 
 ---
 
@@ -105,83 +107,6 @@ Swagger documentation
 ```
 http://localhost:8000/docs
 ```
-
----
-
-## Application Logging
-
-The backend uses centralized structured logging built on Python's standard `logging` library. Every log entry includes:
-
-- UTC ISO 8601 timestamp with milliseconds
-- log level
-- request ID
-- logger/module name
-- message
-- stack trace for exceptions
-
-Example log lines:
-
-```text
-2026-07-13T10:30:45.123Z INFO [request_id=-] [module=app.main] Application started
-2026-07-13T10:32:01.100Z INFO [request_id=req-001] [module=request] GET /health 200 18ms client_ip=127.0.0.1
-```
-
-### Logging Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOG_LEVEL` | `INFO` | Minimum level for console and application logs. |
-| `LOG_DIR` | `logs` | Directory where log files are written. Created automatically. |
-| `APP_LOG_FILE` | `app.log` | Application log filename inside `LOG_DIR`. |
-| `ERROR_LOG_FILE` | `error.log` | Error log filename inside `LOG_DIR`. |
-| `ENABLE_CONSOLE_LOG` | `true` | Enables or disables console logging. |
-
-To change the log level or directory:
-
-```bash
-LOG_LEVEL=DEBUG LOG_DIR=/tmp/tactica-logs uvicorn app.main:app --reload
-```
-
-### Log Files
-
-- `logs/app.log` contains `DEBUG`, `INFO`, and `WARNING` records only.
-- `logs/error.log` contains `ERROR` and `CRITICAL` records only, including full exception tracebacks.
-
-Generated `.log` files are ignored by git.
-
-### Request IDs
-
-Each incoming request receives a unique UUID request ID. The ID is:
-
-- stored in async-safe request context for automatic log injection
-- included in every log generated while handling the request
-- returned to the client in the `X-Request-ID` response header
-
-Use the response header to search related logs:
-
-```bash
-grep "request_id=<value-from-X-Request-ID>" logs/app.log logs/error.log
-```
-
-Inspect unexpected exceptions with:
-
-```bash
-tail -n 100 logs/error.log
-```
-
-Unexpected internal exceptions return a safe JSON response:
-
-```json
-{"detail": "Internal server error"}
-```
-
-Stack traces and internal exception details are never exposed to clients.
-
-### Sensitive Data Rules
-
-The request lifecycle middleware logs method, path, status code, duration, and client IP. It does not log request bodies, response bodies, authorization headers, cookies, tokens, or query values.
-
-Logging sanitization redacts sensitive keys case-insensitively, including `password`, `password_hash`, `access_token`, `refresh_token`, `token`, `authorization`, `jwt_secret_key`, `database_password`, `db_password`, `secret`, and `api_key`. Nested dictionaries and collections are sanitized, and common strings such as `password=secret`, `"access_token": "secret"`, and `Authorization: Bearer secret` are written with `[REDACTED]`.
 
 ---
 
@@ -408,9 +333,7 @@ Interactive API documentation is available after running the server.
 
 ## Related Repositories
 
-- Frontend
-- Infrastructure
-- Documentation
+- [Frontend](https://github.com/Bootcamp2OlaClass/tactica_ai_frontend) — Next.js app (`frontend/` subdirectory)
 
 ---
 
