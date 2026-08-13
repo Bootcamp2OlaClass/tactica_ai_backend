@@ -501,6 +501,44 @@ def test_delete_task_success(
     )
 
 
+def test_delete_task_calls_calendar_unsync_when_service_provided(db: MagicMock) -> None:
+    """Phase 12: deleting a task must also remove its synced calendar
+    event -- but only when a CalendarSyncService was actually wired in
+    (see app/routers/task.py's delete_task endpoint); the default
+    TaskService(db) used everywhere else stays unaffected, confirmed by
+    test_delete_task_success above never touching this code path."""
+    task = make_task()
+    calendar_sync_service = MagicMock()
+    service = TaskService(db=db, calendar_sync_service=calendar_sync_service)
+
+    with (
+        patch.object(service, "get_task", return_value=task),
+        patch("app.services.task.task_repository.soft_delete_task", return_value=task),
+    ):
+        service.delete_task(task_id=1, user_id=100)
+
+    calendar_sync_service.unsync_task.assert_called_once_with(task=task, user_id=100)
+
+
+def test_delete_task_swallows_calendar_unsync_errors(db: MagicMock) -> None:
+    """A calendar-side failure (network, expired token, event already
+    gone) must never turn an already-successful task deletion into a
+    user-visible error -- same non-fatal-cleanup reasoning as Phase 03's
+    DocumentDeleteService."""
+    task = make_task()
+    calendar_sync_service = MagicMock()
+    calendar_sync_service.unsync_task.side_effect = RuntimeError("calendar unavailable")
+    service = TaskService(db=db, calendar_sync_service=calendar_sync_service)
+
+    with (
+        patch.object(service, "get_task", return_value=task),
+        patch("app.services.task.task_repository.soft_delete_task", return_value=task),
+    ):
+        result = service.delete_task(task_id=1, user_id=100)  # must not raise
+
+    assert result is task
+
+
 def test_create_task_rolls_back_on_database_error(
     service: TaskService,
     db: MagicMock,

@@ -1,5 +1,7 @@
+import logging
 from datetime import datetime, timezone
 from math import ceil
+from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -20,13 +22,24 @@ from app.repositories import course_repository
 from app.repositories import task_repository
 from app.schemas.task import TaskCreate, TaskUpdate
 
+if TYPE_CHECKING:
+    from app.services.calendar_sync import CalendarSyncService
+
+logger = logging.getLogger(__name__)
+
 
 class TaskService:
     def __init__(
         self,
         db: Session,
+        calendar_sync_service: "CalendarSyncService | None" = None,
     ) -> None:
         self.db = db
+        # Optional (Phase 12) -- defaults to None so every existing
+        # TaskService(db) call site and test, across every prior phase,
+        # is completely unaffected. Only wired to a real
+        # CalendarSyncService at the router dependency level.
+        self.calendar_sync_service = calendar_sync_service
 
     def _get_owned_course(
         self,
@@ -294,7 +307,7 @@ class TaskService:
         )
 
         try:
-            return task_repository.soft_delete_task(
+            deleted = task_repository.soft_delete_task(
                 db=self.db,
                 task=task,
             )
@@ -302,3 +315,20 @@ class TaskService:
         except SQLAlchemyError:
             self.db.rollback()
             raise
+
+        if self.calendar_sync_service is not None:
+            # Non-fatal on failure, same reasoning as Phase 03's
+            # DocumentDeleteService cleaning up the extracted-content
+            # artifact: the task deletion itself already succeeded by
+            # this point, and a calendar-side error (network, expired
+            # token, event already gone) shouldn't turn a successful
+            # delete into a user-visible failure.
+            try:
+                self.calendar_sync_service.unsync_task(task=deleted, user_id=user_id)
+            except Exception:
+                logger.exception(
+                    "Failed to remove calendar event for deleted task",
+                    extra={"task_id": task_id, "user_id": user_id},
+                )
+
+        return deleted

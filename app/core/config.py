@@ -57,6 +57,13 @@ class Settings:
     gemini_embedding_model: str = "gemini-embedding-001"
     openai_embedding_model: str = "text-embedding-3-small"
 
+    # Google Calendar sync (Phase 12) — independent of ADR-001's identity
+    # decision (that ADR covers login/session auth, this is a separate
+    # OAuth scope for calendar write access only).
+    google_calendar_client_id: str | None = None
+    google_calendar_client_secret: str | None = field(default=None, repr=False)
+    google_calendar_redirect_uri: str | None = None
+
 
 def _required_environment_value(name: str) -> str:
     value = os.getenv(name)
@@ -184,6 +191,14 @@ def load_settings() -> Settings:
     if llm_provider == "openai" and not openai_api_key:
         raise ConfigurationError("LLM_PROVIDER=openai requires OPENAI_API_KEY")
 
+    google_calendar_client_id = os.getenv("GOOGLE_CALENDAR_CLIENT_ID", "").strip() or None
+    google_calendar_client_secret = (
+        os.getenv("GOOGLE_CALENDAR_CLIENT_SECRET", "").strip() or None
+    )
+    google_calendar_redirect_uri = (
+        os.getenv("GOOGLE_CALENDAR_REDIRECT_URI", "").strip() or None
+    )
+
     database_port_value = _required_environment_value("DATABASE_PORT").strip()
     try:
         database_port = int(database_port_value)
@@ -249,6 +264,9 @@ def load_settings() -> Settings:
         openai_model=openai_model,
         gemini_embedding_model=gemini_embedding_model,
         openai_embedding_model=openai_embedding_model,
+        google_calendar_client_id=google_calendar_client_id,
+        google_calendar_client_secret=google_calendar_client_secret,
+        google_calendar_redirect_uri=google_calendar_redirect_uri,
     )
 
 

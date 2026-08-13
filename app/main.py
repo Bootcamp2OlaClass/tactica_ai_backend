@@ -16,6 +16,7 @@ from app.core.logging import (
 )
 from app.db.session import validate_database_connection
 from app.routers import auth
+from app.routers import calendar
 from app.routers import chat
 from app.routers import courses
 from app.routers import dashboard
@@ -66,6 +67,7 @@ app.add_middleware(
 
 # Routers
 app.include_router(auth.router)
+app.include_router(calendar.router)
 app.include_router(chat.router)
 app.include_router(courses.router)
 app.include_router(dashboard.router)

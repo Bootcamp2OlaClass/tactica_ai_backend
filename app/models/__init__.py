@@ -25,6 +25,7 @@ from app.models.degree import (
     Prerequisite,
     StudentDegreeProgress,
 )
+from app.models.calendar import CalendarConnection, CalendarSync, CalendarSyncStatus
 
 __all__ = [
     "User",
@@ -51,4 +52,7 @@ __all__ = [
     "DegreeProgram",
     "DegreeRequirement",
     "StudentDegreeProgress",
+    "CalendarConnection",
+    "CalendarSync",
+    "CalendarSyncStatus",
 ]
