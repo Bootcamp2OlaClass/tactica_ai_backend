@@ -7,6 +7,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.password_reset_token import PasswordResetToken
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.extraction_candidate import ExtractionCandidate
+from app.models.document_chunk import DocumentChunk
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "PasswordResetToken",
     "EmailVerificationToken",
     "ExtractionCandidate",
+    "DocumentChunk",
 ]

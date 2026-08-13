@@ -9,7 +9,12 @@ from app.exceptions.document import (
     DocumentFileMissingError,
     DocumentNotFoundError,
 )
-from app.models.document import DocumentType, LLMExtractionStatus, ProcessingStatus
+from app.models.document import (
+    ChunkEmbeddingStatus,
+    DocumentType,
+    LLMExtractionStatus,
+    ProcessingStatus,
+)
 from app.services.document_query import DocumentQueryService
 
 
@@ -40,6 +45,8 @@ def make_document(
         text_length=None,
         llm_extraction_status=LLMExtractionStatus.NOT_REQUESTED,
         llm_extraction_error=None,
+        chunk_embedding_status=ChunkEmbeddingStatus.NOT_REQUESTED,
+        chunk_embedding_error=None,
         created_at=now,
         updated_at=now,
         is_deleted=False,

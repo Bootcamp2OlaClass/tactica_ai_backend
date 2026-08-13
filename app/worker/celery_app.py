@@ -48,6 +48,7 @@ celery_app = Celery(
         "app.worker.tasks.system",
         "app.worker.tasks.documents",
         "app.worker.tasks.extraction",
+        "app.worker.tasks.rag",
     ],
 )
 
@@ -113,3 +114,4 @@ def _reset_task_logging_context(task_id=None, **_kwargs) -> None:
 import app.worker.tasks.system  # noqa: E402,F401
 import app.worker.tasks.documents  # noqa: E402,F401
 import app.worker.tasks.extraction  # noqa: E402,F401
+import app.worker.tasks.rag  # noqa: E402,F401

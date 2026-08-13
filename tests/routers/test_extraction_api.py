@@ -15,7 +15,13 @@ from app.exceptions.extraction import (
     ExtractionNotAvailableError,
 )
 from app.main import app
-from app.models.document import DocumentType, ExtractionMethod, LLMExtractionStatus, ProcessingStatus
+from app.models.document import (
+    ChunkEmbeddingStatus,
+    DocumentType,
+    ExtractionMethod,
+    LLMExtractionStatus,
+    ProcessingStatus,
+)
 from app.models.extraction_candidate import CandidateStatus, CandidateType
 from app.routers.extraction import (
     get_document_extraction_trigger_service,
@@ -45,6 +51,8 @@ def make_document(**overrides):
         text_length=100,
         llm_extraction_status=LLMExtractionStatus.QUEUED,
         llm_extraction_error=None,
+        chunk_embedding_status=ChunkEmbeddingStatus.NOT_REQUESTED,
+        chunk_embedding_error=None,
         created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
         updated_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
     )

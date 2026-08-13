@@ -19,6 +19,7 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.course import Course
+    from app.models.document_chunk import DocumentChunk
     from app.models.extraction_candidate import ExtractionCandidate
     from app.models.task import Task
     from app.models.user import User
@@ -54,6 +55,20 @@ class LLMExtractionStatus(str, Enum):
     LLMExtractionStatus.NOT_REQUESTED at the same time; extraction is an
     explicit, separately-triggered (and API-cost-incurring) step, not
     auto-chained onto upload."""
+
+    NOT_REQUESTED = "NOT_REQUESTED"
+    QUEUED = "QUEUED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class ChunkEmbeddingStatus(str, Enum):
+    """The RAG chunk+embed sub-pipeline (Phase 07) — a third, separate
+    state machine alongside ProcessingStatus (Phase 05) and
+    LLMExtractionStatus (Phase 06). Chunking/embedding is explicitly
+    triggered (API-cost-incurring, like Phase 06), not auto-chained onto
+    upload or extraction."""
 
     NOT_REQUESTED = "NOT_REQUESTED"
     QUEUED = "QUEUED"
@@ -192,6 +207,22 @@ class Document(Base):
         default=None,
     )
 
+    chunk_embedding_status: Mapped[ChunkEmbeddingStatus] = mapped_column(
+        SQLEnum(
+            ChunkEmbeddingStatus,
+            name="chunkembeddingstatus",
+        ),
+        nullable=False,
+        default=ChunkEmbeddingStatus.NOT_REQUESTED,
+        server_default=ChunkEmbeddingStatus.NOT_REQUESTED.value,
+    )
+
+    chunk_embedding_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+        default=None,
+    )
+
     is_deleted: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -232,5 +263,9 @@ class Document(Base):
     )
 
     extraction_candidates: Mapped[list["ExtractionCandidate"]] = relationship(
+        back_populates="document",
+    )
+
+    chunks: Mapped[list["DocumentChunk"]] = relationship(
         back_populates="document",
     )

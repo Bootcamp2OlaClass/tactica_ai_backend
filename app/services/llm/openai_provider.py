@@ -1,8 +1,9 @@
 """OpenAI implementation of LLMProvider — see ADR-002.
 
 NOT VERIFIED against the real OpenAI API: no credentials were available in
-this environment. Contract-tested against a fake client (see
-tests/services/llm/).
+this environment. Exercised only indirectly, via DocumentExtractionService's
+fake-provider test seam (tests/services/test_document_extraction.py) — this
+class's own call to the real SDK is untested.
 """
 
 from openai import OpenAI

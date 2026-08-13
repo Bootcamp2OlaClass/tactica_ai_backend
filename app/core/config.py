@@ -52,6 +52,11 @@ class Settings:
     openai_api_key: str | None = field(default=None, repr=False)
     openai_model: str = "gpt-4o-mini"
 
+    # Embedding provider reuses llm_provider/*_api_key (see ADR-007) — no
+    # separate credential category, just a separate model name per vendor.
+    gemini_embedding_model: str = "gemini-embedding-001"
+    openai_embedding_model: str = "text-embedding-3-small"
+
 
 def _required_environment_value(name: str) -> str:
     value = os.getenv(name)
@@ -167,6 +172,12 @@ def load_settings() -> Settings:
     gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
     openai_api_key = os.getenv("OPENAI_API_KEY", "").strip() or None
     openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+    gemini_embedding_model = os.getenv(
+        "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"
+    ).strip()
+    openai_embedding_model = os.getenv(
+        "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
+    ).strip()
 
     if llm_provider == "gemini" and not gemini_api_key:
         raise ConfigurationError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
@@ -236,6 +247,8 @@ def load_settings() -> Settings:
         gemini_model=gemini_model,
         openai_api_key=openai_api_key,
         openai_model=openai_model,
+        gemini_embedding_model=gemini_embedding_model,
+        openai_embedding_model=openai_embedding_model,
     )
 
 

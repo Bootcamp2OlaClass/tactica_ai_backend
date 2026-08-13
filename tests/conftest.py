@@ -1,7 +1,7 @@
 import os
 
 import pytest
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from app.db.base import Base
@@ -44,6 +44,12 @@ def db_session():
         TEST_DATABASE_URL,
         pool_pre_ping=True,
     )
+
+    # document_chunks.embedding is a pgvector `vector` column (Phase 07) --
+    # the extension must exist before create_all can create it, same as a
+    # real deployment's migration does via `CREATE EXTENSION IF NOT EXISTS`.
+    with engine.begin() as connection:
+        connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
     Base.metadata.create_all(bind=engine)
 

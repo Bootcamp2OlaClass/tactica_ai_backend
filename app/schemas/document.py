@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.document import (
+    ChunkEmbeddingStatus,
     DocumentType,
     ExtractionMethod,
     LLMExtractionStatus,
@@ -29,6 +30,8 @@ class DocumentResponse(BaseModel):
     text_length: int | None
     llm_extraction_status: LLMExtractionStatus
     llm_extraction_error: str | None
+    chunk_embedding_status: ChunkEmbeddingStatus
+    chunk_embedding_error: str | None
     created_at: datetime
     updated_at: datetime
 

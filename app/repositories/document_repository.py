@@ -4,6 +4,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import Query, Session
 
 from app.models.document import (
+    ChunkEmbeddingStatus,
     Document,
     DocumentType,
     ExtractionMethod,
@@ -26,6 +27,13 @@ _CLAIMABLE_EXTRACTION_STATUSES = (
     LLMExtractionStatus.NOT_REQUESTED,
     LLMExtractionStatus.QUEUED,
     LLMExtractionStatus.FAILED,
+)
+
+# Same claim pattern, for the Phase 07 chunk-embedding sub-pipeline.
+_CLAIMABLE_CHUNK_EMBEDDING_STATUSES = (
+    ChunkEmbeddingStatus.NOT_REQUESTED,
+    ChunkEmbeddingStatus.QUEUED,
+    ChunkEmbeddingStatus.FAILED,
 )
 
 
@@ -316,6 +324,46 @@ class DocumentRepository:
     def mark_extraction_failed(self, document: Document, error_message: str) -> Document:
         document.llm_extraction_status = LLMExtractionStatus.FAILED
         document.llm_extraction_error = error_message
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    # --- Phase 07: chunk-embedding sub-pipeline (mirrors Phase 05/06's
+    # atomic-claim pattern exactly) ----------------------------------------
+
+    def try_start_chunk_embedding(self, document_id: int) -> bool:
+        result = self.db.execute(
+            update(Document)
+            .where(
+                Document.id == document_id,
+                Document.is_deleted.is_(False),
+                Document.chunk_embedding_status.in_(_CLAIMABLE_CHUNK_EMBEDDING_STATUSES),
+            )
+            .values(
+                chunk_embedding_status=ChunkEmbeddingStatus.PROCESSING,
+                chunk_embedding_error=None,
+            )
+        )
+        self.db.commit()
+
+        return result.rowcount == 1
+
+    def mark_chunk_embedding_queued(self, document: Document) -> Document:
+        document.chunk_embedding_status = ChunkEmbeddingStatus.QUEUED
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    def mark_chunk_embedding_completed(self, document: Document) -> Document:
+        document.chunk_embedding_status = ChunkEmbeddingStatus.COMPLETED
+        document.chunk_embedding_error = None
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    def mark_chunk_embedding_failed(self, document: Document, error_message: str) -> Document:
+        document.chunk_embedding_status = ChunkEmbeddingStatus.FAILED
+        document.chunk_embedding_error = error_message
         self.db.commit()
         self.db.refresh(document)
         return document
