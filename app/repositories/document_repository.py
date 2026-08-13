@@ -1,11 +1,39 @@
 from datetime import datetime, timezone
 
+from sqlalchemy import update
 from sqlalchemy.orm import Query, Session
 
 from app.models.document import (
+    ChunkEmbeddingStatus,
     Document,
     DocumentType,
+    ExtractionMethod,
+    LLMExtractionStatus,
     ProcessingStatus,
+)
+
+# Statuses from which a processing attempt may claim a document. Excludes
+# PROCESSING (a genuine duplicate job must not double-claim -- see
+# try_start_processing) and COMPLETED (already done, reprocessing a
+# finished document isn't this phase's scope).
+_CLAIMABLE_STATUSES = (
+    ProcessingStatus.UPLOADED,
+    ProcessingStatus.QUEUED,
+    ProcessingStatus.FAILED,
+)
+
+# Same claim pattern, for the Phase 06 LLM-extraction sub-pipeline.
+_CLAIMABLE_EXTRACTION_STATUSES = (
+    LLMExtractionStatus.NOT_REQUESTED,
+    LLMExtractionStatus.QUEUED,
+    LLMExtractionStatus.FAILED,
+)
+
+# Same claim pattern, for the Phase 07 chunk-embedding sub-pipeline.
+_CLAIMABLE_CHUNK_EMBEDDING_STATUSES = (
+    ChunkEmbeddingStatus.NOT_REQUESTED,
+    ChunkEmbeddingStatus.QUEUED,
+    ChunkEmbeddingStatus.FAILED,
 )
 
 
@@ -177,4 +205,165 @@ class DocumentRepository:
             document.deleted_at = datetime.now(timezone.utc)
             self.db.flush()
 
+        return document
+
+    def try_start_processing(
+        self,
+        document_id: int,
+    ) -> bool:
+        """Atomically claim a document for processing.
+
+        A single UPDATE ... WHERE statement, not a read-then-write pair --
+        under Postgres's row-level locking this is genuinely race-safe: two
+        concurrent workers both attempting to claim the same document will
+        serialize on the row, and only one UPDATE will match the WHERE
+        clause (the loser's `processing_status` is no longer in
+        `_CLAIMABLE_STATUSES` by the time it runs). Returns whether *this*
+        call won the claim.
+        """
+        result = self.db.execute(
+            update(Document)
+            .where(
+                Document.id == document_id,
+                Document.is_deleted.is_(False),
+                Document.processing_status.in_(_CLAIMABLE_STATUSES),
+            )
+            .values(
+                processing_status=ProcessingStatus.PROCESSING,
+                processing_error=None,
+            )
+        )
+        self.db.commit()
+
+        return result.rowcount == 1
+
+    def mark_queued(
+        self,
+        document: Document,
+    ) -> Document:
+        document.processing_status = ProcessingStatus.QUEUED
+        self.db.commit()
+        self.db.refresh(document)
+
+        return document
+
+    def mark_completed(
+        self,
+        document: Document,
+        *,
+        extraction_method: ExtractionMethod,
+        page_count: int,
+        text_length: int,
+        extracted_content_path: str,
+    ) -> Document:
+        document.processing_status = ProcessingStatus.COMPLETED
+        document.processing_error = None
+        document.processed_at = datetime.now(timezone.utc)
+        document.extraction_method = extraction_method
+        document.page_count = page_count
+        document.text_length = text_length
+        document.extracted_content_path = extracted_content_path
+
+        self.db.commit()
+        self.db.refresh(document)
+
+        return document
+
+    def mark_failed(
+        self,
+        document: Document,
+        error_message: str,
+        *,
+        extraction_method: ExtractionMethod | None = None,
+    ) -> Document:
+        document.processing_status = ProcessingStatus.FAILED
+        document.processing_error = error_message
+        document.processed_at = datetime.now(timezone.utc)
+
+        if extraction_method is not None:
+            document.extraction_method = extraction_method
+
+        self.db.commit()
+        self.db.refresh(document)
+
+        return document
+
+    # --- Phase 06: LLM extraction sub-pipeline (mirrors the Phase 05
+    # methods above exactly -- same atomic-claim reasoning applies) -------
+
+    def try_start_extraction(self, document_id: int) -> bool:
+        result = self.db.execute(
+            update(Document)
+            .where(
+                Document.id == document_id,
+                Document.is_deleted.is_(False),
+                Document.llm_extraction_status.in_(_CLAIMABLE_EXTRACTION_STATUSES),
+            )
+            .values(
+                llm_extraction_status=LLMExtractionStatus.PROCESSING,
+                llm_extraction_error=None,
+            )
+        )
+        self.db.commit()
+
+        return result.rowcount == 1
+
+    def mark_extraction_queued(self, document: Document) -> Document:
+        document.llm_extraction_status = LLMExtractionStatus.QUEUED
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    def mark_extraction_completed(self, document: Document) -> Document:
+        document.llm_extraction_status = LLMExtractionStatus.COMPLETED
+        document.llm_extraction_error = None
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    def mark_extraction_failed(self, document: Document, error_message: str) -> Document:
+        document.llm_extraction_status = LLMExtractionStatus.FAILED
+        document.llm_extraction_error = error_message
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    # --- Phase 07: chunk-embedding sub-pipeline (mirrors Phase 05/06's
+    # atomic-claim pattern exactly) ----------------------------------------
+
+    def try_start_chunk_embedding(self, document_id: int) -> bool:
+        result = self.db.execute(
+            update(Document)
+            .where(
+                Document.id == document_id,
+                Document.is_deleted.is_(False),
+                Document.chunk_embedding_status.in_(_CLAIMABLE_CHUNK_EMBEDDING_STATUSES),
+            )
+            .values(
+                chunk_embedding_status=ChunkEmbeddingStatus.PROCESSING,
+                chunk_embedding_error=None,
+            )
+        )
+        self.db.commit()
+
+        return result.rowcount == 1
+
+    def mark_chunk_embedding_queued(self, document: Document) -> Document:
+        document.chunk_embedding_status = ChunkEmbeddingStatus.QUEUED
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    def mark_chunk_embedding_completed(self, document: Document) -> Document:
+        document.chunk_embedding_status = ChunkEmbeddingStatus.COMPLETED
+        document.chunk_embedding_error = None
+        self.db.commit()
+        self.db.refresh(document)
+        return document
+
+    def mark_chunk_embedding_failed(self, document: Document, error_message: str) -> Document:
+        document.chunk_embedding_status = ChunkEmbeddingStatus.FAILED
+        document.chunk_embedding_error = error_message
+        self.db.commit()
+        self.db.refresh(document)
         return document

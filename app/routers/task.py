@@ -392,7 +392,13 @@ def delete_task(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
-    service = TaskService(db)
+    # CalendarSyncService wired in only here (Phase 12) -- deleting a task
+    # should also remove its synced calendar event, if any; every other
+    # endpoint's plain TaskService(db) is deliberately unchanged.
+    from app.core.config import get_settings
+    from app.services.calendar_sync import CalendarSyncService
+
+    service = TaskService(db, calendar_sync_service=CalendarSyncService(db, get_settings()))
 
     try:
         service.delete_task(

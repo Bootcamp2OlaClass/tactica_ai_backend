@@ -44,7 +44,14 @@ celery_app = Celery(
     "tactica_ai",
     broker=settings.celery_broker_url,
     backend=settings.celery_result_backend,
-    include=["app.worker.tasks.system"],
+    include=[
+        "app.worker.tasks.system",
+        "app.worker.tasks.documents",
+        "app.worker.tasks.extraction",
+        "app.worker.tasks.rag",
+        "app.worker.tasks.roadmap",
+        "app.worker.tasks.notifications",
+    ],
 )
 
 celery_app.conf.update(
@@ -60,6 +67,18 @@ celery_app.conf.update(
     result_expires=3600,
     worker_hijack_root_logger=False,
     task_default_queue=SYSTEM_QUEUE,
+    # Phase 13's the first periodic task in this codebase -- requires a
+    # separate `celery beat` process actually running (see compose.yaml's
+    # `beat` service) to fire on schedule; the worker alone won't trigger
+    # it. 15 minutes is frequent enough that a 24h due-soon window (see
+    # app/services/notification_reminders.py) never has a task slip
+    # through the gap between runs.
+    beat_schedule={
+        "send-task-reminders": {
+            "task": "notifications.send_task_reminders",
+            "schedule": 900.0,
+        },
+    },
 )
 
 
@@ -107,3 +126,6 @@ def _reset_task_logging_context(task_id=None, **_kwargs) -> None:
 # directly (the API process calling .delay(), tests) needs the task modules
 # actually imported to register decorated tasks. Import explicitly here too.
 import app.worker.tasks.system  # noqa: E402,F401
+import app.worker.tasks.documents  # noqa: E402,F401
+import app.worker.tasks.extraction  # noqa: E402,F401
+import app.worker.tasks.rag  # noqa: E402,F401

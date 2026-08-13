@@ -13,7 +13,15 @@ services:
   backend:
     build:
       context: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Runs migrations before serving -- a fresh `docker compose up` (empty
+    # postgres_data volume) previously left the schema completely empty,
+    # since nothing else in this stack ever ran `alembic upgrade head`.
+    # Every API call failed with a generic 500 (the request-logging
+    # middleware's safe-error-response behavior, working exactly as
+    # designed, but masking "no tables exist yet" instead of a real
+    # attack). Found via a real `docker compose down -v && up` run, not
+    # inferred -- see RELEASE_BLOCKERS.md.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     ports:
       - "8000:8000"
     environment:
@@ -28,6 +36,25 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      # Shared with `worker` (Phase 05) -- LocalStorageProvider writes
+      # relative to UPLOAD_DIR on whichever container's filesystem it
+      # runs in; without a shared volume, a file the API saves is
+      # invisible to the worker container that needs to read it back
+      # (found live: process_document failed with "file not found" until
+      # this was added -- separate containers, separate filesystems).
+      - uploads_data:/app/uploads
+    healthcheck:
+      # No curl in python:3.11-slim -- urllib is always available. Only
+      # reports healthy once uvicorn is actually accepting requests, which
+      # (per the command above) is strictly after migrations finish --
+      # this is what lets worker/beat safely wait on `service_healthy`
+      # below instead of racing to run migrations themselves.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
     depends_on:
       db:
         condition: service_healthy
@@ -42,7 +69,46 @@ services:
   worker:
     build:
       context: .
-    command: celery -A app.worker.celery_app worker --loglevel=info --pool=solo
+    # Explicit -Q so the worker consumes every named queue (app/worker/celery_app.py),
+    # not just the default -- otherwise a task routed to e.g. "documents"
+    # (Phase 05+) silently sits unconsumed if a queue name is ever added
+    # here without updating this list.
+    command: celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q system,documents,ai,notifications,calendar
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_URL: postgresql+psycopg2://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # Waits for backend's healthcheck (only passes once uvicorn is
+      # actually serving, which per its command is strictly after
+      # migrations finish) -- avoids the worker touching tables before the
+      # schema exists on a fresh volume. `service_started` alone would NOT
+      # have been enough: Compose considers a container "started" as soon
+      # as its entrypoint process launches, not after `alembic upgrade
+      # head && uvicorn ...`'s first command finishes.
+      backend:
+        condition: service_healthy
+
+  # Celery beat scheduler (Phase 13) — fires notifications.send_task_reminders
+  # on the interval in app/worker/celery_app.py's beat_schedule. Separate
+  # from `worker`: beat only schedules, it never executes a task itself.
+  beat:
+    build:
+      context: .
+    command: celery -A app.worker.celery_app beat --loglevel=info
     environment:
       DATABASE_HOST: db
       DATABASE_PORT: "5432"
@@ -58,6 +124,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      backend:
         condition: service_healthy
 
   redis:
@@ -97,3 +165,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:

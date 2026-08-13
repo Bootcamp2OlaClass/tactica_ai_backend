@@ -23,3 +23,11 @@ class FileStorageError(DocumentError):
 
 class DocumentFileMissingError(DocumentError, LookupError):
     """Raised when document metadata exists but the physical file is missing."""
+
+class DocumentReprocessNotAllowedError(DocumentError):
+    """Raised when a document's current processing_status doesn't allow
+    reprocessing (e.g. already QUEUED/PROCESSING/COMPLETED)."""
+
+class DocumentProcessingUnavailableError(DocumentError):
+    """Raised when a document is otherwise eligible for reprocessing but
+    the job could not be enqueued (e.g. the broker is unreachable)."""

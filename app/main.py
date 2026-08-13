@@ -16,11 +16,17 @@ from app.core.logging import (
 )
 from app.db.session import validate_database_connection
 from app.routers import auth
+from app.routers import calendar
+from app.routers import chat
 from app.routers import courses
 from app.routers import dashboard
+from app.routers import degree
 from app.routers import documents
-from app.routers import test
-from app.routers import rbac_test
+from app.routers import extraction
+from app.routers import notification
+from app.routers import rag
+from app.routers import recovery_plan
+from app.routers import roadmap
 from app.routers import task
 from app.routers import semester
 
@@ -60,11 +66,17 @@ app.add_middleware(
 
 # Routers
 app.include_router(auth.router)
+app.include_router(calendar.router)
+app.include_router(chat.router)
 app.include_router(courses.router)
 app.include_router(dashboard.router)
+app.include_router(degree.router)
 app.include_router(documents.router)
-app.include_router(test.router)
-app.include_router(rbac_test.router)
+app.include_router(extraction.router)
+app.include_router(notification.router)
+app.include_router(rag.router)
+app.include_router(recovery_plan.router)
+app.include_router(roadmap.router)
 app.include_router(task.router)
 app.include_router(semester.router)
 

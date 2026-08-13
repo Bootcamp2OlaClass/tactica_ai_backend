@@ -23,6 +23,8 @@ from app.exceptions.document import (
     DocumentError,
     DocumentFileMissingError,
     DocumentNotFoundError,
+    DocumentProcessingUnavailableError,
+    DocumentReprocessNotAllowedError,
     DuplicateDocumentError,
     FileStorageError,
     FileTooLargeError,
@@ -40,6 +42,7 @@ from app.schemas.document import (
 )
 from app.services.document_delete import DocumentDeleteService
 from app.services.document_query import DocumentQueryService
+from app.services.document_reprocess import DocumentReprocessService
 from app.services.document_upload import DocumentUploadService
 
 
@@ -64,11 +67,15 @@ DOCUMENT_ERROR_RESPONSES = {
     },
     status.HTTP_409_CONFLICT: {
         "model": ErrorResponse,
-        "description": "Duplicate document",
+        "description": "Duplicate document, or reprocessing not allowed in the current status",
     },
     status.HTTP_500_INTERNAL_SERVER_ERROR: {
         "model": ErrorResponse,
         "description": "Document storage, download, or cleanup fairlure",
+    },
+    status.HTTP_503_SERVICE_UNAVAILABLE: {
+        "model": ErrorResponse,
+        "description": "Document processing could not be queued right now",
     },
 }
 
@@ -89,6 +96,12 @@ def get_document_delete_service(
     db: Session = Depends(get_db),
 ) -> DocumentDeleteService:
     return DocumentDeleteService(db)
+
+
+def get_document_reprocess_service(
+    db: Session = Depends(get_db),
+) -> DocumentReprocessService:
+    return DocumentReprocessService(db)
 
 
 def _content_disposition_header(filename: str) -> str:
@@ -115,7 +128,13 @@ def raise_document_http_exception(
     ):
         status_code = status.HTTP_404_NOT_FOUND
 
-    elif isinstance(error, DuplicateDocumentError):
+    elif isinstance(
+        error,
+        (
+            DuplicateDocumentError,
+            DocumentReprocessNotAllowedError,
+        ),
+    ):
         status_code = status.HTTP_409_CONFLICT
 
     elif isinstance(
@@ -129,6 +148,9 @@ def raise_document_http_exception(
 
     elif isinstance(error, FileStorageError):
         status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
+    elif isinstance(error, DocumentProcessingUnavailableError):
+        status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     else:
         status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -328,6 +350,34 @@ def download_document(
 
     except DocumentError as error:
         raise_document_http_exception(error)
+
+@router.post(
+    "/documents/{document_id}/reprocess",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses=DOCUMENT_ERROR_RESPONSES,
+)
+def reprocess_document(
+    document_id: int = Path(
+        ge=1,
+        description="ID of the document to reprocess",
+    ),
+    current_user: User = Depends(get_current_user),
+    service: DocumentReprocessService = Depends(
+        get_document_reprocess_service
+    ),
+) -> DocumentResponse:
+    try:
+        document = service.reprocess_document(
+            document_id=document_id,
+            user_id=current_user.id,
+        )
+
+        return DocumentResponse.model_validate(document)
+
+    except DocumentError as error:
+        raise_document_http_exception(error)
+
 
 @router.delete(
     "/documents/{document_id}",

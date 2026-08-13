@@ -289,6 +289,13 @@ def test_upload_document_success(
     )
 
     repository.create.return_value = created_document
+    repository.mark_queued.return_value = created_document
+
+    enqueue_mock = MagicMock()
+    monkeypatch.setattr(
+        "app.services.document_upload.process_document.delay",
+        enqueue_mock,
+    )
 
     uploaded_file = UploadFile(
         filename="../../lecture.pdf",
@@ -315,52 +322,60 @@ def test_upload_document_success(
     )
     storage.delete.assert_not_called()
 
-    document_data = (
-        repository.create.call_args.kwargs["document_data"]
+    enqueue_mock.assert_called_once_with(created_document.id)
+    repository.mark_queued.assert_called_once_with(created_document)
+
+
+def test_upload_enqueue_failure_leaves_document_uploaded(
+    service,
+    repository,
+    storage,
+    monkeypatch,
+):
+    course = MagicMock(id=10)
+
+    monkeypatch.setattr(
+        "app.services.document_upload.course_repository.get_course_by_id",
+        MagicMock(return_value=course),
     )
 
-    assert document_data["course_id"] == 10
-    assert document_data["uploaded_by"] == 1
+    repository.find_active_by_course_and_checksum.return_value = None
+    storage.save.return_value = "/tmp/uploads/generated.pdf"
 
-    assert (
-        document_data["original_file_name"]
-        == "lecture.pdf"
+    created_document = SimpleNamespace(
+        id=51,
+        course_id=10,
+        uploaded_by=1,
+        processing_status=ProcessingStatus.UPLOADED,
+    )
+    repository.create.return_value = created_document
+
+    # Simulate an unreachable broker -- the upload itself must still
+    # succeed, and the document must NOT be marked QUEUED.
+    monkeypatch.setattr(
+        "app.services.document_upload.process_document.delay",
+        MagicMock(side_effect=ConnectionError("broker unreachable")),
     )
 
-    assert (
-        document_data["storage_path"]
-        == storage_path
+    uploaded_file = UploadFile(
+        filename="lecture.pdf",
+        file=BytesIO(b"pdf content"),
+        headers={"content-type": "application/pdf"},
     )
 
-    assert (
-        document_data["mime_type"]
-        == "application/pdf"
+    result = asyncio.run(
+        service.upload_document(
+            course_id=10,
+            user_id=1,
+            uploaded_file=uploaded_file,
+        )
     )
 
-    assert document_data["file_size"] == len(
-        b"pdf content"
-    )
+    # Upload succeeds regardless -- the file and metadata are safely
+    # persisted; only queuing failed.
+    assert result is created_document
+    repository.mark_queued.assert_not_called()
 
-    assert len(document_data["checksum"]) == 64
-
-    assert (
-        document_data["document_type"]
-        is DocumentType.LECTURE_NOTE
-    )
-
-    assert (
-        document_data["processing_status"]
-        is ProcessingStatus.UPLOADED
-    )
-
-    assert (
-        document_data["stored_file_name"]
-        != "lecture.pdf"
-    )
-
-    assert document_data[
-        "stored_file_name"
-    ].endswith(".pdf")
 
 def test_upload_rejects_course_not_owned_by_user(
     service,
@@ -433,6 +448,11 @@ def test_upload_generates_checksum_and_safe_filename(
     )
 
     repository.create.return_value = created_document
+
+    monkeypatch.setattr(
+        "app.services.document_upload.process_document.delay",
+        MagicMock(),
+    )
 
     content = b"hello world pdf"
 

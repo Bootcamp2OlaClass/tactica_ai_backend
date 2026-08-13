@@ -1,0 +1,87 @@
+name: Backend CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+# Least-privilege default; nothing in this workflow needs write access to
+# the repo, packages, or deployments.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_database
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d test_database"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Same values tests/conftest.py already defaults to for a local run --
+      # kept explicit here rather than relying on the fallback, so this
+      # workflow stays correct even if conftest.py's defaults ever change.
+      TEST_DATABASE_PORT: "5433"
+      JWT_SECRET: ci-test-secret-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Enable pgvector extension
+        run: |
+          PGPASSWORD=test_password psql -h 127.0.0.1 -p 5433 -U test_user -d test_database \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Run pytest
+        run: python -m pytest tests/ -v
+        env:
+          DATABASE_HOST: 127.0.0.1
+          DATABASE_PORT: "5433"
+          DATABASE_NAME: test_database
+          DATABASE_USER: test_user
+          DATABASE_PASSWORD: test_password
+          DATABASE_URL: postgresql+psycopg2://test_user:test_password@127.0.0.1:5433/test_database
+          REDIS_URL: redis://127.0.0.1:6379/0
+
+      - name: Verify Alembic migrations apply cleanly and match the models
+        run: |
+          alembic upgrade head
+          alembic check
+        env:
+          DATABASE_HOST: 127.0.0.1
+          DATABASE_PORT: "5433"
+          DATABASE_NAME: test_database
+          DATABASE_USER: test_user
+          DATABASE_PASSWORD: test_password
+          DATABASE_URL: postgresql+psycopg2://test_user:test_password@127.0.0.1:5433/test_database
+          UPLOAD_DIR: uploads
