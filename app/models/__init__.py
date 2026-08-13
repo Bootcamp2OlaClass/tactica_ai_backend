@@ -10,6 +10,14 @@ from app.models.extraction_candidate import ExtractionCandidate
 from app.models.document_chunk import DocumentChunk
 from app.models.conversation import Conversation
 from app.models.message import Message, MessageRole
+from app.models.roadmap import (
+    RoadmapGenerationStatus,
+    RoadmapItem,
+    RoadmapItemOrigin,
+    RoadmapItemType,
+    RoadmapWeek,
+    SemesterRoadmap,
+)
 
 __all__ = [
     "User",
@@ -25,4 +33,10 @@ __all__ = [
     "Conversation",
     "Message",
     "MessageRole",
+    "SemesterRoadmap",
+    "RoadmapWeek",
+    "RoadmapItem",
+    "RoadmapGenerationStatus",
+    "RoadmapItemType",
+    "RoadmapItemOrigin",
 ]

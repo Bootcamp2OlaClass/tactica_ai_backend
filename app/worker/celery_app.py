@@ -49,6 +49,7 @@ celery_app = Celery(
         "app.worker.tasks.documents",
         "app.worker.tasks.extraction",
         "app.worker.tasks.rag",
+        "app.worker.tasks.roadmap",
     ],
 )
 
