@@ -11,13 +11,15 @@ Production hosting has not been decided (ADR-009, status `PROPOSED`) or implemen
 | Service | What it runs | Depends on |
 |---|---|---|
 | `frontend` | `npm run dev` (Next.js), port 3000 | `backend` |
-| `backend` | `uvicorn app.main:app --reload`, port 8000 | `db`, `redis` (healthy) |
-| `worker` | `celery -A app.worker.celery_app worker -Q system,documents,ai,notifications,calendar` | `db`, `redis` (healthy) |
-| `beat` | `celery -A app.worker.celery_app beat` (Phase 13, the only periodic job's scheduler) | `db`, `redis` (healthy) |
+| `backend` | `alembic upgrade head && uvicorn app.main:app --reload`, port 8000 | `db`, `redis` (healthy) |
+| `worker` | `celery -A app.worker.celery_app worker -Q system,documents,ai,notifications,calendar` | `db`, `redis`, `backend` (all healthy) |
+| `beat` | `celery -A app.worker.celery_app beat` (Phase 13, the only periodic job's scheduler) | `db`, `redis`, `backend` (all healthy) |
 | `redis` | `redis:7-alpine`, port 6379 | — |
 | `db` | `pgvector/pgvector:pg16`, port `${DATABASE_PORT}` | — |
 
 Shared named volume `uploads_data` mounted into both `backend` and `worker` — without it, a file the API saves is invisible to the worker container that needs to read it back for processing (found live in Phase 05, BUG-016: separate containers have separate filesystems by default).
+
+`backend` runs migrations before serving, and has a healthcheck (only passes once uvicorn is actually accepting requests, i.e. strictly after migrations finish) that `worker`/`beat` wait on — a fresh `docker compose up` against an empty `postgres_data` volume previously left the schema completely empty, since nothing in the stack ever ran `alembic upgrade head` (BUG-021, found and fixed via a real `docker compose down -v && up` run during release-candidate verification — the same class of gap only a genuine multi-container run can surface, per Phase 05's precedent).
 
 Required env vars (see `.env.example` in the backend repo): `DATABASE_*`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`. Everything else (LLM/embedding/R2/Calendar/Resend credentials) is optional — every provider abstraction degrades gracefully to "feature unavailable" rather than failing startup when unconfigured (see `docs/ARCHITECTURE.md`).
 
