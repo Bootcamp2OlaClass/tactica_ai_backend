@@ -50,6 +50,7 @@ celery_app = Celery(
         "app.worker.tasks.extraction",
         "app.worker.tasks.rag",
         "app.worker.tasks.roadmap",
+        "app.worker.tasks.notifications",
     ],
 )
 
@@ -66,6 +67,18 @@ celery_app.conf.update(
     result_expires=3600,
     worker_hijack_root_logger=False,
     task_default_queue=SYSTEM_QUEUE,
+    # Phase 13's the first periodic task in this codebase -- requires a
+    # separate `celery beat` process actually running (see compose.yaml's
+    # `beat` service) to fire on schedule; the worker alone won't trigger
+    # it. 15 minutes is frequent enough that a 24h due-soon window (see
+    # app/services/notification_reminders.py) never has a task slip
+    # through the gap between runs.
+    beat_schedule={
+        "send-task-reminders": {
+            "task": "notifications.send_task_reminders",
+            "schedule": 900.0,
+        },
+    },
 )
 
 

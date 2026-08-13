@@ -64,6 +64,10 @@ class Settings:
     google_calendar_client_secret: str | None = field(default=None, repr=False)
     google_calendar_redirect_uri: str | None = None
 
+    # Email notifications (Phase 13) — Resend.
+    resend_api_key: str | None = field(default=None, repr=False)
+    resend_from_address: str | None = None
+
 
 def _required_environment_value(name: str) -> str:
     value = os.getenv(name)
@@ -199,6 +203,9 @@ def load_settings() -> Settings:
         os.getenv("GOOGLE_CALENDAR_REDIRECT_URI", "").strip() or None
     )
 
+    resend_api_key = os.getenv("RESEND_API_KEY", "").strip() or None
+    resend_from_address = os.getenv("RESEND_FROM_ADDRESS", "").strip() or None
+
     database_port_value = _required_environment_value("DATABASE_PORT").strip()
     try:
         database_port = int(database_port_value)
@@ -267,6 +274,8 @@ def load_settings() -> Settings:
         google_calendar_client_id=google_calendar_client_id,
         google_calendar_client_secret=google_calendar_client_secret,
         google_calendar_redirect_uri=google_calendar_redirect_uri,
+        resend_api_key=resend_api_key,
+        resend_from_address=resend_from_address,
     )
 
 

@@ -23,6 +23,7 @@ from app.routers import dashboard
 from app.routers import degree
 from app.routers import documents
 from app.routers import extraction
+from app.routers import notification
 from app.routers import rag
 from app.routers import recovery_plan
 from app.routers import roadmap
@@ -74,6 +75,7 @@ app.include_router(dashboard.router)
 app.include_router(degree.router)
 app.include_router(documents.router)
 app.include_router(extraction.router)
+app.include_router(notification.router)
 app.include_router(rag.router)
 app.include_router(recovery_plan.router)
 app.include_router(roadmap.router)

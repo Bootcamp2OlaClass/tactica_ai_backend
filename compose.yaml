@@ -74,6 +74,30 @@ services:
       redis:
         condition: service_healthy
 
+  # Celery beat scheduler (Phase 13) — fires notifications.send_task_reminders
+  # on the interval in app/worker/celery_app.py's beat_schedule. Separate
+  # from `worker`: beat only schedules, it never executes a task itself.
+  beat:
+    build:
+      context: .
+    command: celery -A app.worker.celery_app beat --loglevel=info
+    environment:
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      DATABASE_NAME: ${DATABASE_NAME}
+      DATABASE_USER: ${DATABASE_USER}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      DATABASE_URL: postgresql+psycopg2://${DATABASE_USER}:${DATABASE_PASSWORD}@db:5432/${DATABASE_NAME}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   redis:
     image: redis:7-alpine
     ports:

@@ -26,6 +26,7 @@ from app.models.degree import (
     StudentDegreeProgress,
 )
 from app.models.calendar import CalendarConnection, CalendarSync, CalendarSyncStatus
+from app.models.notification import NotificationLog, NotificationPreference, NotificationType
 
 __all__ = [
     "User",
@@ -55,4 +56,7 @@ __all__ = [
     "CalendarConnection",
     "CalendarSync",
     "CalendarSyncStatus",
+    "NotificationPreference",
+    "NotificationLog",
+    "NotificationType",
 ]
