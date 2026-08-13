@@ -19,6 +19,7 @@ from app.routers import auth
 from app.routers import chat
 from app.routers import courses
 from app.routers import dashboard
+from app.routers import degree
 from app.routers import documents
 from app.routers import extraction
 from app.routers import rag
@@ -68,6 +69,7 @@ app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(courses.router)
 app.include_router(dashboard.router)
+app.include_router(degree.router)
 app.include_router(documents.router)
 app.include_router(extraction.router)
 app.include_router(rag.router)

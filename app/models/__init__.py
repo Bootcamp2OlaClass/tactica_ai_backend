@@ -18,6 +18,13 @@ from app.models.roadmap import (
     RoadmapWeek,
     SemesterRoadmap,
 )
+from app.models.degree import (
+    CourseCatalogEntry,
+    DegreeProgram,
+    DegreeRequirement,
+    Prerequisite,
+    StudentDegreeProgress,
+)
 
 __all__ = [
     "User",
@@ -39,4 +46,9 @@ __all__ = [
     "RoadmapGenerationStatus",
     "RoadmapItemType",
     "RoadmapItemOrigin",
+    "CourseCatalogEntry",
+    "Prerequisite",
+    "DegreeProgram",
+    "DegreeRequirement",
+    "StudentDegreeProgress",
 ]
