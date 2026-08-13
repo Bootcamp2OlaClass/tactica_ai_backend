@@ -10,6 +10,54 @@ from app.models.semester import Semester, SemesterStatus
 from app.models.user import User, UserRole
 
 
+def create_user_with_course(
+    db_session,
+    *,
+    email_prefix: str,
+    course_code: str = "CS101",
+    course_name: str = "Intro to CS",
+) -> tuple[User, Course]:
+    """User -> Semester -> Course, with no Document -- for tests (Phase 08
+    chat/academic-context) that need real course rows but nothing
+    document/RAG-related."""
+    user = User(
+        email=f"{email_prefix}-{id(db_session)}@example.com",
+        password_hash="hashed-password",
+        full_name=f"{email_prefix} Test User",
+        role=UserRole.STUDENT,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    semester = Semester(
+        user_id=user.id,
+        name="Fall 2026",
+        academic_year=2026,
+        start_date=date(2026, 8, 24),
+        end_date=date(2026, 12, 15),
+        status=SemesterStatus.ACTIVE,
+        is_deleted=False,
+    )
+    db_session.add(semester)
+    db_session.commit()
+    db_session.refresh(semester)
+
+    course = Course(
+        semester_id=semester.id,
+        course_code=course_code,
+        name=course_name,
+        credits=3,
+        status=CourseStatus.ACTIVE,
+        is_deleted=False,
+    )
+    db_session.add(course)
+    db_session.commit()
+    db_session.refresh(course)
+
+    return user, course
+
+
 def create_document(
     db_session,
     *,
