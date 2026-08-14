@@ -51,6 +51,8 @@ class Settings:
     gemini_model: str = "gemini-2.0-flash"
     openai_api_key: str | None = field(default=None, repr=False)
     openai_model: str = "gpt-4o-mini"
+    groq_api_key: str | None = field(default=None, repr=False)
+    groq_model: str = "llama-3.3-70b-versatile"
 
     # Embedding provider reuses llm_provider/*_api_key (see ADR-007) — no
     # separate credential category, just a separate model name per vendor.
@@ -176,13 +178,17 @@ def load_settings() -> Settings:
     )
 
     llm_provider = os.getenv("LLM_PROVIDER", "").strip().lower() or None
-    if llm_provider is not None and llm_provider not in ("gemini", "openai"):
-        raise ConfigurationError("LLM_PROVIDER must be 'gemini' or 'openai' if set")
+    if llm_provider is not None and llm_provider not in ("gemini", "openai", "groq"):
+        raise ConfigurationError(
+            "LLM_PROVIDER must be 'gemini', 'openai', or 'groq' if set"
+        )
 
     gemini_api_key = os.getenv("GEMINI_API_KEY", "").strip() or None
     gemini_model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash").strip()
     openai_api_key = os.getenv("OPENAI_API_KEY", "").strip() or None
     openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
+    groq_api_key = os.getenv("GROQ_API_KEY", "").strip() or None
+    groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip()
     gemini_embedding_model = os.getenv(
         "GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"
     ).strip()
@@ -194,6 +200,8 @@ def load_settings() -> Settings:
         raise ConfigurationError("LLM_PROVIDER=gemini requires GEMINI_API_KEY")
     if llm_provider == "openai" and not openai_api_key:
         raise ConfigurationError("LLM_PROVIDER=openai requires OPENAI_API_KEY")
+    if llm_provider == "groq" and not groq_api_key:
+        raise ConfigurationError("LLM_PROVIDER=groq requires GROQ_API_KEY")
 
     google_calendar_client_id = os.getenv("GOOGLE_CALENDAR_CLIENT_ID", "").strip() or None
     google_calendar_client_secret = (
@@ -269,6 +277,8 @@ def load_settings() -> Settings:
         gemini_model=gemini_model,
         openai_api_key=openai_api_key,
         openai_model=openai_model,
+        groq_api_key=groq_api_key,
+        groq_model=groq_model,
         gemini_embedding_model=gemini_embedding_model,
         openai_embedding_model=openai_embedding_model,
         google_calendar_client_id=google_calendar_client_id,

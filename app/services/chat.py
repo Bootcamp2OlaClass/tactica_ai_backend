@@ -27,11 +27,13 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.exceptions.chat import ChatNotAvailableError, ConversationNotFoundError
+from app.exceptions.rag import EmbeddingNotAvailableError
 from app.models.conversation import Conversation
 from app.models.message import Message, MessageRole
 from app.repositories.conversation_repository import ConversationRepository
 from app.schemas.chat import ChatCompletion
 from app.services.academic_context import AcademicContext, AcademicContextService
+from app.services.embedding.exceptions import EmbeddingError, EmbeddingTransientError
 from app.services.llm import LLMNotConfiguredError, LLMProvider, get_llm_provider
 from app.services.retrieval import RetrievalService, RetrievedChunk
 
@@ -132,12 +134,26 @@ class ChatService:
         )
 
         # --- Retrieve ---
-        chunks = self.retrieval_service.search(
-            user_id=user_id,
-            query=message,
-            course_id=course_id,
-            top_k=RETRIEVAL_TOP_K,
-        )
+        # Document-chunk retrieval is an enhancement, not a hard dependency:
+        # if no embedding provider is configured (or it's temporarily
+        # unreachable), the chat should still answer from the student's
+        # academic context rather than fail the whole turn -- same
+        # graceful-degradation philosophy as RecoveryPlanService's handling
+        # of a missing LLM provider.
+        try:
+            chunks = self.retrieval_service.search(
+                user_id=user_id,
+                query=message,
+                course_id=course_id,
+                top_k=RETRIEVAL_TOP_K,
+            )
+        except (EmbeddingNotAvailableError, EmbeddingTransientError, EmbeddingError) as exc:
+            logger.warning(
+                "Document retrieval unavailable for chat turn; continuing "
+                "without document context",
+                extra={"error": str(exc)},
+            )
+            chunks = []
         academic_context = self.academic_context_service.get_context(
             user_id=user_id
         )

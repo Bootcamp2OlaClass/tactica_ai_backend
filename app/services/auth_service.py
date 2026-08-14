@@ -141,3 +141,11 @@ def login_user(
     })
 
     return token, user
+
+
+def update_profile(db: Session, user: User, full_name: str) -> User:
+    user.full_name = full_name
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

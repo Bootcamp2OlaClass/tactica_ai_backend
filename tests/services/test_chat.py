@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.exceptions.chat import ChatNotAvailableError, ConversationNotFoundError
+from app.exceptions.rag import EmbeddingNotAvailableError
 from app.models.document_chunk import DocumentChunk
 from app.models.message import MessageRole
 from app.repositories.conversation_repository import ConversationRepository
@@ -196,6 +197,38 @@ def test_send_message_raises_when_no_llm_provider_is_configured(db_session, monk
     # is reached and really does raise, which is what this test proves.
     with pytest.raises(ChatNotAvailableError):
         service.send_message(user_id=user.id, message="When is my exam?")
+
+
+def test_send_message_degrades_gracefully_when_embeddings_are_unavailable(db_session):
+    # Root-cause regression test for the "Couldn't send" bug: an unconfigured
+    # (or transiently unreachable) embedding provider must not fail the
+    # whole chat turn -- it should just mean no document chunks were
+    # retrieved this turn, same graceful-degradation philosophy as
+    # RecoveryPlanService's handling of a missing LLM provider.
+    user, course = create_user_with_course(db_session, email_prefix="chat-no-embed")
+    completion = ChatCompletion(
+        answer="You're enrolled in one course.", grounded=True, citations=[]
+    )
+
+    class RaisingRetrievalService:
+        def search(self, **kwargs):
+            raise EmbeddingNotAvailableError("No embedding provider is configured.")
+
+    provider = FakeLLMProvider(completion)
+    service = ChatService(
+        db=db_session,
+        settings=SimpleNamespace(llm_provider="groq"),
+        retrieval_service=RaisingRetrievalService(),
+        llm_provider=provider,
+    )
+
+    _, message = service.send_message(user_id=user.id, message="What courses am I in?")
+
+    assert message.content == "You're enrolled in one course."
+    assert message.grounded is True
+    # The LLM was still reached using academic context, proving this
+    # degraded rather than short-circuiting to NO_CONTEXT_ANSWER.
+    assert len(provider.calls) == 1
 
 
 def test_send_message_keeps_a_citation_that_matches_a_retrieved_chunk(db_session):

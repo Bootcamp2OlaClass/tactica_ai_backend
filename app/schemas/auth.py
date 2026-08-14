@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 class RegisterRequest(BaseModel):
     email: str
@@ -38,3 +38,14 @@ class MessageResponse(BaseModel):
 
 class AccountDeletionRequest(BaseModel):
     password: str
+
+class UpdateProfileRequest(BaseModel):
+    full_name: str = Field(min_length=1, max_length=255)
+
+    @field_validator("full_name")
+    @classmethod
+    def _strip_and_require_non_blank(cls, value: str) -> str:
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError("full_name must not be blank")
+        return stripped
