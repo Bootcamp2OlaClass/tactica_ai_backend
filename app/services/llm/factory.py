@@ -24,7 +24,15 @@ def get_llm_provider(settings: Settings) -> LLMProvider:
             model=settings.openai_model,
         )
 
+    if settings.llm_provider == "groq":
+        from app.services.llm.groq_provider import GroqProvider
+
+        return GroqProvider(
+            api_key=settings.groq_api_key,
+            model=settings.groq_model,
+        )
+
     raise LLMNotConfiguredError(
-        "No LLM provider is configured (set LLM_PROVIDER=gemini|openai "
+        "No LLM provider is configured (set LLM_PROVIDER=gemini|openai|groq "
         "plus the matching API key)."
     )

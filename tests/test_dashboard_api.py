@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.auth import get_current_user
+from app.exceptions.semester import SemesterConflictError
 from app.main import app
 from app.models.document import ProcessingStatus
 from app.models.semester import SemesterStatus
@@ -143,6 +144,24 @@ def test_empty_dashboard_returns_200_with_arrays_and_numeric_counts(
     ):
         assert isinstance(payload[field], int)
         assert payload[field] == 0
+
+
+def test_dashboard_returns_409_for_multiple_active_semesters(
+    client: TestClient,
+    service: MagicMock,
+) -> None:
+    # A user with two ACTIVE semesters is a genuine data-conflict state, not
+    # a server bug -- the dashboard must surface it as 409, never as an
+    # unhandled 500 (root cause of the reported dashboard outage was
+    # infra/DB-reachability, not this path, but this conflict path is the
+    # one place the service is documented to intentionally raise).
+    service.get_summary.side_effect = SemesterConflictError(
+        "Multiple active semesters exist for this user."
+    )
+
+    response = client.get("/api/v1/dashboard")
+
+    assert response.status_code == 409
 
 
 def test_openapi_documents_complete_dashboard_response() -> None:

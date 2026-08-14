@@ -11,12 +11,14 @@ from app.schemas.auth import (
     EmailVerificationConfirmSchema,
     MessageResponse,
     AccountDeletionRequest,
+    UpdateProfileRequest,
 )
 
 from app.services.account_deletion_service import delete_account
 from app.services.auth_service import (
     register_user,
-    login_user
+    login_user,
+    update_profile,
 )
 from app.services.password_reset_service import (
     request_password_reset,
@@ -182,6 +184,18 @@ def logout(
         )
 def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.patch(
+        "/me",
+        response_model=UserResponse,
+        )
+def update_me(
+    body: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return update_profile(db, current_user, body.full_name)
 
 
 @router.post(
