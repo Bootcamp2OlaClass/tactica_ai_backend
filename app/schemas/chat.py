@@ -4,11 +4,16 @@
 mechanism as Phase 06's `AcademicDocumentExtraction` / Phase 07's
 embedding call, via `LLMProvider.extract_structured`) — the model
 literally cannot emit free text outside this shape. `grounded` is the
-model's own self-report of whether the provided context actually answers
-the question; `ChatCitation.chunk_id` values are re-verified against the
-chunks actually retrieved this turn before being trusted (the
-ground-truth-filter step in app/services/chat.py — never take the model's
-citation list at face value).
+model's own self-report of whether the answer actually relies on the
+provided Tactica context (a document excerpt or the student's academic
+data) to state a personal fact; `requires_personal_data` is the model's
+separate self-report of whether the *question* needed the student's own
+data at all, independent of whether it found any -- together they drive
+ChatService's answer_mode (general / grounded / missing_personal_context).
+`ChatCitation.chunk_id` values are re-verified against the chunks actually
+retrieved this turn before being trusted (the ground-truth-filter step in
+app/services/chat.py — never take the model's citation list at face
+value).
 
 The remaining classes are the public API response shapes.
 """
@@ -17,7 +22,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.message import MessageRole
+from app.models.message import AnswerMode, MessageRole
 
 
 class ChatCitation(BaseModel):
@@ -28,6 +33,7 @@ class ChatCitation(BaseModel):
 class ChatCompletion(BaseModel):
     answer: str
     grounded: bool
+    requires_personal_data: bool = False
     citations: list[ChatCitation] = Field(default_factory=list)
 
 
@@ -46,6 +52,7 @@ class MessageResponse(BaseModel):
     content: str
     grounded: bool | None
     citations: list[ChatCitation] | None
+    answer_mode: AnswerMode | None
     created_at: datetime
 
 

@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.api.auth import get_current_user
 from app.exceptions.chat import ChatNotAvailableError, ConversationNotFoundError
 from app.main import app
-from app.models.message import MessageRole
+from app.models.message import AnswerMode, MessageRole
 from app.routers.chat import chat_rate_limit, get_chat_query_service, get_chat_service
 from app.services.chat import ChatService
 from app.services.chat_query import ChatQueryService
@@ -36,6 +36,7 @@ def make_message(**overrides):
         content="Your exam is Friday.",
         grounded=True,
         citations=[{"chunk_id": 5, "document_id": 9}],
+        answer_mode=AnswerMode.GROUNDED,
         created_at=datetime(2026, 8, 13, tzinfo=timezone.utc),
     )
     defaults.update(overrides)
@@ -174,6 +175,7 @@ def test_stream_chat_message_emits_deltas_then_a_final_event(client, chat_servic
         "conversation_id": conversation.id,
         "message_id": message.id,
         "grounded": True,
+        "answer_mode": "GROUNDED",
         "citations": message.citations,
     }
 
@@ -191,7 +193,13 @@ def test_list_conversations_returns_only_the_services_result(client, chat_query_
 def test_get_conversation_returns_messages(client, chat_query_service):
     conversation = make_conversation()
     messages = [
-        make_message(role=MessageRole.USER, content="When is my exam?", grounded=None, citations=None),
+        make_message(
+            role=MessageRole.USER,
+            content="When is my exam?",
+            grounded=None,
+            citations=None,
+            answer_mode=None,
+        ),
         make_message(role=MessageRole.ASSISTANT),
     ]
     chat_query_service.get_conversation.return_value = (conversation, messages)

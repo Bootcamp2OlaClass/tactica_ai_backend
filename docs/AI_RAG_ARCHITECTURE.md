@@ -11,11 +11,11 @@ The chunking/retrieval code this trades away from a mature library is genuinely 
 
 ## LLM provider abstraction (ADR-002)
 
-`LLMProvider` (`app/services/llm/`) — `GeminiProvider` and `OpenAIProvider` behind one interface, selected via `LLM_PROVIDER`. Both use each SDK's **native structured-output mode** (JSON-schema-constrained generation, `response_schema`/`response_format`), not a prompt asking nicely for JSON — every LLM call in the codebase goes through `LLMProvider.extract_structured(system_prompt, content, response_schema)` and gets back a validated Pydantic object or a typed error (`LLMNotConfiguredError` / `LLMTransientError` / `LLMExtractionError`), never raw text to parse. Default provider: Gemini (cost-conscious choice, no real comparative accuracy data exists yet — see ADR-002's "Revisit When").
+`LLMProvider` (`app/services/llm/`) — `GeminiProvider`, `OpenAIProvider`, and `GroqProvider` behind one interface, selected via `LLM_PROVIDER`. Gemini/OpenAI use each SDK's **native structured-output mode** (JSON-schema-constrained generation, `response_schema`/`response_format`); Groq's structured-output support is inconsistent across models, so `GroqProvider` uses OpenAI-compatible "JSON mode" (`response_format={"type": "json_object"}`) with the target schema embedded directly in the system prompt, then validates the result client-side the same way the others do. Every LLM call in the codebase goes through `LLMProvider.extract_structured(system_prompt, content, response_schema)` and gets back a validated Pydantic object or a typed error (`LLMNotConfiguredError` / `LLMTransientError` / `LLMExtractionError`), never raw text to parse. `LLM_PROVIDER` is unset by default so the app boots with AI features disabled rather than failing to start; a missing/misconfigured provider logs a warning at startup (`app/main.py`'s `lifespan`) in addition to the existing per-request 503, so it's visible from the boot logs, not just the first failed chat message.
 
-`EmbeddingProvider` (`app/services/embedding/`) mirrors the same shape exactly. Same vendor governs both generation and embeddings per environment (ADR-007) — one API key, one less axis of configuration. 768-dimensional embeddings; no `pgvector` index yet (ADR-008 — `document_chunks` stays small enough per user that a sequential scan is fine, deferred until real usage data says otherwise).
+`EmbeddingProvider` (`app/services/embedding/`) mirrors the same shape for Gemini/OpenAI. Same vendor governs both generation and embeddings per environment (ADR-007) — one API key, one less axis of configuration. Groq has no embeddings API, so `LLM_PROVIDER=groq` runs chat/extraction/roadmap generation for real but leaves document-chunk retrieval (RAG) "not configured" — chat still answers from the student's academic data, it just won't cite uploaded documents. 768-dimensional embeddings; no `pgvector` index yet (ADR-008 — `document_chunks` stays small enough per user that a sequential scan is fine, deferred until real usage data says otherwise).
 
-**Neither has real credentials in this environment.** Every LLM/embedding code path is proven against a fake provider with the exact same call contract as the real SDK (same method signatures, same exception types) — this is what makes every downstream feature (extraction, chat, roadmap, recovery plan, degree recommendations) fully testable without live API access. The real network call itself remains `NOT VERIFIED`, tracked per-feature in the project's internal status tracking, never silently marked PASS.
+**Groq is verified against the real API in this environment** (`LLM_PROVIDER=groq`, local `.env`, not committed) — chat generation and roadmap generation have both been exercised live, not just against the fake-provider test seam. Gemini/OpenAI remain `NOT VERIFIED` (no credentials available here) but share the identical `LLMProvider` interface and the same fake-provider test coverage as Groq, so nothing about enabling them is expected to differ. `docker compose`'s `backend`/`worker` services must explicitly list `LLM_PROVIDER`/`*_API_KEY` in their `environment:` block for a host `.env` value to reach the container at all — compose only passes through variables it names, so this was a real, previously-silent gap (chat 503ing with "no LLM provider configured" regardless of `.env` content) fixed alongside this note.
 
 ## Document extraction (Phase 06)
 
@@ -27,16 +27,22 @@ The chunking/retrieval code this trades away from a mature library is genuinely 
 
 A fixed 8-question retrieval evaluation set (`tests/services/test_retrieval_eval.py`) runs against a deterministic, topically-grounded fake embedding provider — 100% top-1 accuracy, plus a fixture-sanity check proving the question set isn't trivially ambiguous.
 
-## AI Study Coach chat (Phase 08)
+## AI Study Coach chat (Phase 08) — hybrid RAG + general LLM
 
 `ChatService`'s pipeline, the canonical example of the deterministic-first pattern (see `docs/ARCHITECTURE.md`):
 
 1. **Retrieve** — Phase 07's `RetrievalService`, tenant-scoped, optionally course-scoped.
-2. **Generate** — Phase 06's `LLMProvider.extract_structured` against a `ChatCompletion` schema (answer text + claimed citations + `grounded` boolean), combined with a deterministic `AcademicContextService` (plain DB facts: courses, upcoming deadlines — not retrieved via RAG, since these aren't document content).
-3. **Validate / Ground-truth-filter** — every citation the model claims is re-checked against the `chunk_id`s actually retrieved *that turn*. A citation to a chunk that wasn't retrieved downgrades the answer to "I don't know," even if the model self-reported `grounded=true` — the model's own claim is never trusted alone.
-4. **Return** — persisted as a `Message` row, `grounded`/`citations` fields exposed to the frontend so it can visually distinguish a grounded answer from an honest "I don't know."
+2. **Generate** — Phase 06's `LLMProvider.extract_structured` against a `ChatCompletion` schema, combined with a deterministic `AcademicContextService` (plain DB facts: courses, upcoming deadlines — not retrieved via RAG, since these aren't document content). **The LLM is always consulted, for every question** — retrieved context (or the lack of it) is additional information for the model, never a gate on whether it may answer. This is a deliberate correction from an earlier version of this pipeline, which refused to call the model at all for an empty account, so "Hi" from a brand-new user got a canned "I don't have any data" reply instead of a normal greeting.
+3. **Validate / Ground-truth-filter** — every citation the model claims is re-checked against the `chunk_id`s actually retrieved *that turn*. A citation to a chunk that wasn't retrieved downgrades the answer to an honest "I don't have that," even if the model self-reported `grounded=true` — the model's own claim is never trusted alone. This constrains *personal* facts (dates, grades, policies, deadlines) exclusively; it has no bearing on general-knowledge answers, which need no citation to begin with.
+4. **Return** — persisted as a `Message` row with `grounded`/`citations`/`answer_mode`.
 
-A fully empty account (no courses, no documents) short-circuits before any LLM call — there's nothing to answer questions about.
+`ChatCompletion` carries two independent model self-reports, not one: `grounded` (did the answer actually rely on Tactica context to state a personal fact) and `requires_personal_data` (did the *question* need the student's own data at all, regardless of whether it was found). `ChatService._answer_mode` derives one of three states server-side from that pair — `grounded` alone can't distinguish "general question, nothing to ground" from "personal question, data missing," since both self-report `grounded=false`:
+
+- **GENERAL** — no personal data needed (small talk, general programming/study questions). Expected, common, not an error; the frontend shows a quiet "General knowledge" label rather than a warning.
+- **GROUNDED** — the answer relies on real Tactica data (a document excerpt and/or the student's academic data).
+- **MISSING_PERSONAL_CONTEXT** — the question needed the student's own data and Tactica doesn't have it. The frontend shows this distinctly (a warning + suggestion to upload/add the missing data) — never fabricated.
+
+The system prompt (`SYSTEM_PROMPT` in `app/services/chat.py`) is what actually enforces the "never fabricate a personal fact, general knowledge doesn't need grounding" split; the ground-truth-filter step is the backstop that doesn't trust the model's own word for it on the personal-data side.
 
 ## Prompt-injection mitigation
 
@@ -47,4 +53,4 @@ Two distinct risk profiles, handled differently (reviewed explicitly in Phase 14
 
 ## What's not real yet
 
-No live Gemini/OpenAI/embedding API calls have been made in this environment — no credentials exist. No document-based prompt-injection attack has been tested against a real model (only the mitigation's *presence* is verified, not its real-world effectiveness against an actual adversarial document). Both are explicit, tracked gaps, not silent assumptions.
+No live Gemini/OpenAI/embedding API calls have been made in this environment — no credentials exist for those two (Groq chat/generation is verified live; see above). No document-based prompt-injection attack has been tested against a real model (only the mitigation's *presence* is verified, not its real-world effectiveness against an actual adversarial document). Both are explicit, tracked gaps, not silent assumptions.
