@@ -151,6 +151,7 @@ def stream_chat_message(
             "conversation_id": conversation.id,
             "message_id": message.id,
             "grounded": message.grounded,
+            "answer_mode": message.answer_mode.value if message.answer_mode else None,
             "citations": message.citations or [],
         }
         yield f"data: {json.dumps(final_event)}\n\n"

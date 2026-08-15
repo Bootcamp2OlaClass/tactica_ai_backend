@@ -2,7 +2,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.conversation import Conversation
-from app.models.message import Message, MessageRole
+from app.models.message import AnswerMode, Message, MessageRole
 
 
 class ConversationRepository:
@@ -70,6 +70,7 @@ class ConversationRepository:
         content: str,
         grounded: bool | None = None,
         citations: list[dict] | None = None,
+        answer_mode: AnswerMode | None = None,
     ) -> Message:
         message = Message(
             conversation_id=conversation_id,
@@ -77,6 +78,7 @@ class ConversationRepository:
             content=content,
             grounded=grounded,
             citations=citations,
+            answer_mode=answer_mode,
         )
         self.db.add(message)
         self.db.flush()

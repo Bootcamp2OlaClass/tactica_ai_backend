@@ -36,6 +36,23 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      # Without these, LLM_PROVIDER/*_API_KEY in the host .env never reach
+      # this container at all -- docker compose only passes through
+      # variables actually listed here, so the backend booted with every AI
+      # feature permanently disabled (chat 503s with "no LLM provider
+      # configured") regardless of what .env said, even after get_settings()
+      # was fixed to read it correctly. Blank defaults keep an unset .env
+      # value from breaking `docker compose up` for anyone not using AI
+      # features locally.
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-}
     volumes:
       # Shared with `worker` (Phase 05) -- LocalStorageProvider writes
       # relative to UPLOAD_DIR on whichever container's filesystem it
@@ -85,6 +102,18 @@ services:
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
+      # Document extraction/embedding/roadmap tasks run in this container,
+      # not the API one -- see the `backend` service's LLM_PROVIDER comment
+      # above for why this passthrough has to be explicit.
+      LLM_PROVIDER: ${LLM_PROVIDER:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-}
     volumes:
       - uploads_data:/app/uploads
     depends_on:

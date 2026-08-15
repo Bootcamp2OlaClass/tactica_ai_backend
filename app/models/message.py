@@ -17,13 +17,27 @@ class MessageRole(str, Enum):
     ASSISTANT = "ASSISTANT"
 
 
+class AnswerMode(str, Enum):
+    """Why an ASSISTANT message looks the way it does -- lets the frontend
+    distinguish "this is a normal general-knowledge answer" (grounded=false
+    is expected and not worth a warning) from "this answer honestly
+    couldn't find the student's own data" (grounded=false but the student
+    should know why). See ChatService's hybrid RAG + general LLM decision
+    flow (PHASE_08_AI_STUDY_COACH.md)."""
+
+    GENERAL = "GENERAL"
+    GROUNDED = "GROUNDED"
+    MISSING_PERSONAL_CONTEXT = "MISSING_PERSONAL_CONTEXT"
+
+
 class Message(Base):
     """One turn in a Conversation — see PHASE_08_AI_STUDY_COACH.md.
 
-    `citations`/`grounded` are only ever populated on ASSISTANT messages
-    (the Return step of the Retrieve->Generate->Validate->Ground-truth-
-    filter->Return pipeline persists them there); a USER message is the
-    student's own question, verbatim, with no such fields.
+    `citations`/`grounded`/`answer_mode` are only ever populated on
+    ASSISTANT messages (the Return step of the Retrieve->Generate->
+    Validate->Ground-truth-filter->Return pipeline persists them there); a
+    USER message is the student's own question, verbatim, with no such
+    fields.
     """
 
     __tablename__ = "messages"
@@ -51,6 +65,12 @@ class Message(Base):
 
     citations: Mapped[list[dict] | None] = mapped_column(
         JSONB,
+        nullable=True,
+        default=None,
+    )
+
+    answer_mode: Mapped[AnswerMode | None] = mapped_column(
+        SQLEnum(AnswerMode, name="answermode"),
         nullable=True,
         default=None,
     )

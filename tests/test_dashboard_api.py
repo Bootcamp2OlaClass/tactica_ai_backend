@@ -47,11 +47,20 @@ def make_summary() -> dict[str, object]:
             )
         ],
         "recent_documents": [
+            # Matches the real Document ORM model's attribute names
+            # (app/models/document.py), not DashboardDocumentResponse's
+            # shorter public field names -- the service returns actual
+            # Document rows, and this fixture previously used the
+            # response-schema names directly (file_name/status), which
+            # made this test pass against a shape that could never occur
+            # in production and hid a real 500 (DashboardDocumentResponse
+            # field/attribute mismatch, fixed via validation_alias in
+            # app/schemas/dashboard.py).
             SimpleNamespace(
                 id=21,
                 course_id=5,
-                file_name="syllabus.pdf",
-                status=ProcessingStatus.COMPLETED,
+                original_file_name="syllabus.pdf",
+                processing_status=ProcessingStatus.COMPLETED,
                 created_at=datetime(
                     2026, 8, 8, 8, 0, tzinfo=timezone.utc
                 ),

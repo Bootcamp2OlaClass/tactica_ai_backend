@@ -14,7 +14,7 @@ import pytest
 from app.exceptions.chat import ChatNotAvailableError, ConversationNotFoundError
 from app.exceptions.rag import EmbeddingNotAvailableError
 from app.models.document_chunk import DocumentChunk
-from app.models.message import MessageRole
+from app.models.message import AnswerMode, MessageRole
 from app.repositories.conversation_repository import ConversationRepository
 from app.schemas.chat import ChatCitation, ChatCompletion
 from app.services.chat import NO_CONTEXT_ANSWER, ChatService
@@ -77,7 +77,7 @@ def _build_service(db_session, *, llm_completion=None, llm_provider=None):
     return service, provider
 
 
-def test_send_message_short_circuits_for_a_completely_empty_account(db_session):
+def _create_empty_account_user(db_session):
     from app.models.user import User, UserRole
 
     user = User(
@@ -89,18 +89,107 @@ def test_send_message_short_circuits_for_a_completely_empty_account(db_session):
     db_session.add(user)
     db_session.commit()
     db_session.refresh(user)
+    return user
 
-    service, provider = _build_service(db_session, llm_completion=None)
 
-    conversation, message = service.send_message(
-        user_id=user.id, message="When is my exam?"
+def test_send_message_reaches_the_llm_even_for_a_completely_empty_account(db_session):
+    # Regression guard for the opposite of the old behavior: a brand-new
+    # account with zero courses/tasks/documents must NOT be refused before
+    # ever reaching the model -- "Hi" from a new user should get a normal
+    # greeting, not a canned "I don't have any data" reply. Retrieved
+    # context (or the lack of it) is additional information for the model,
+    # never a gate on whether it's allowed to answer.
+    user = _create_empty_account_user(db_session)
+    completion = ChatCompletion(
+        answer="Hi! How can I help you with your courses or studying today?",
+        grounded=False,
+        requires_personal_data=False,
+    )
+    service, provider = _build_service(db_session, llm_completion=completion)
+
+    conversation, message = service.send_message(user_id=user.id, message="Hi")
+
+    assert message.content == completion.answer
+    assert message.grounded is False
+    assert message.answer_mode == AnswerMode.GENERAL
+    assert len(provider.calls) == 1
+
+
+def test_send_message_answers_a_general_question_with_no_retrieved_context(db_session):
+    # "What is recursion?" from a user who has courses/tasks on file but no
+    # relevant document chunks -- a general-knowledge question should still
+    # get a normal answer, not be blocked on the empty retrieval result.
+    user, course = create_user_with_course(db_session, email_prefix="chat-general")
+    completion = ChatCompletion(
+        answer=(
+            "Recursion is when a function calls itself to solve smaller "
+            "instances of the same problem."
+        ),
+        grounded=False,
+        requires_personal_data=False,
+    )
+    service, provider = _build_service(db_session, llm_completion=completion)
+
+    _, message = service.send_message(user_id=user.id, message="What is recursion?")
+
+    assert message.content == completion.answer
+    assert message.grounded is False
+    assert message.answer_mode == AnswerMode.GENERAL
+    assert len(provider.calls) == 1
+
+
+def test_send_message_marks_missing_personal_context_for_an_unanswerable_personal_question(
+    db_session,
+):
+    # The question needs the student's own data (a final-exam date) and
+    # Tactica doesn't have it -- must be reported distinctly from a
+    # general answer so the frontend can show a useful "not on file"
+    # message instead of nothing, without flagging every ordinary
+    # general-knowledge answer as if something went wrong.
+    user, course = create_user_with_course(db_session, email_prefix="chat-missing-personal")
+    completion = ChatCompletion(
+        answer=(
+            "I don't currently have a final-exam date recorded for that "
+            "course. If you upload the syllabus or add the exam date, I "
+            "can help you plan for it."
+        ),
+        grounded=False,
+        requires_personal_data=True,
+    )
+    service, _ = _build_service(db_session, llm_completion=completion)
+
+    _, message = service.send_message(
+        user_id=user.id, message="When is my CSE 1320 final exam?"
     )
 
-    assert message.content == NO_CONTEXT_ANSWER
     assert message.grounded is False
-    assert message.citations == []
-    # The whole point of the short-circuit: no API call was made.
-    assert provider.calls == []
+    assert message.answer_mode == AnswerMode.MISSING_PERSONAL_CONTEXT
+    assert message.content == completion.answer
+
+
+def test_send_message_answers_a_mixed_question_using_context_and_reasoning(db_session):
+    # "How should I prepare for my assignment due Friday?" -- personal data
+    # (the real due date, via academic context) plus general reasoning
+    # (study-planning advice) in one answer, still ends up GROUNDED since
+    # it relies on real Tactica data for the personal part.
+    user, course = create_user_with_course(db_session, email_prefix="chat-mixed")
+    completion = ChatCompletion(
+        answer=(
+            "Since your assignment is due Friday, block out focused time "
+            "over the next two days and tackle the hardest part first."
+        ),
+        grounded=True,
+        requires_personal_data=True,
+    )
+    service, provider = _build_service(db_session, llm_completion=completion)
+
+    _, message = service.send_message(
+        user_id=user.id, message="How should I prepare for my assignment due Friday?"
+    )
+
+    assert message.grounded is True
+    assert message.answer_mode == AnswerMode.GROUNDED
+    assert len(provider.calls) == 1
 
 
 def test_send_message_persists_user_and_assistant_turns(db_session):
@@ -192,9 +281,10 @@ def test_send_message_raises_when_no_llm_provider_is_configured(db_session, monk
 
     monkeypatch.setattr("app.services.chat.get_llm_provider", _raise_not_configured)
 
-    # There is a course on file (not a fully-empty account), so the
-    # deterministic short-circuit does NOT apply -- the provider really
-    # is reached and really does raise, which is what this test proves.
+    # The LLM is always reached (there's no context-based short-circuit
+    # anymore -- see the hybrid RAG + general LLM tests above), so an
+    # unconfigured provider surfaces here, on the first real attempt to
+    # generate an answer.
     with pytest.raises(ChatNotAvailableError):
         service.send_message(user_id=user.id, message="When is my exam?")
 
@@ -266,6 +356,7 @@ def test_send_message_downgrades_a_fully_hallucinated_citation_to_not_grounded(
     completion = ChatCompletion(
         answer="Your exam is Friday, per document X.",
         grounded=True,
+        requires_personal_data=True,
         citations=[ChatCitation(chunk_id=hallucinated_chunk_id, document_id=document.id)],
     )
     service, _ = _build_service(db_session, llm_completion=completion)
@@ -275,6 +366,11 @@ def test_send_message_downgrades_a_fully_hallucinated_citation_to_not_grounded(
     assert message.grounded is False
     assert message.citations == []
     assert message.content == NO_CONTEXT_ANSWER
+    # A model only cites chunk_ids when it believed it was answering a
+    # personal question -- fabricated evidence must still be reported as a
+    # missing-personal-context outcome, never silently downgraded to a
+    # plain general answer.
+    assert message.answer_mode == AnswerMode.MISSING_PERSONAL_CONTEXT
 
 
 def test_send_message_passes_through_an_honest_ungrounded_answer(db_session):
@@ -285,6 +381,7 @@ def test_send_message_passes_through_an_honest_ungrounded_answer(db_session):
     completion = ChatCompletion(
         answer="I don't have information about your degree requirements.",
         grounded=False,
+        requires_personal_data=True,
         citations=[],
     )
     service, _ = _build_service(db_session, llm_completion=completion)
@@ -295,3 +392,4 @@ def test_send_message_passes_through_an_honest_ungrounded_answer(db_session):
 
     assert message.grounded is False
     assert message.content == "I don't have information about your degree requirements."
+    assert message.answer_mode == AnswerMode.MISSING_PERSONAL_CONTEXT
