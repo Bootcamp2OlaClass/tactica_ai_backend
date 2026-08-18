@@ -62,7 +62,7 @@ def test_lifecycle_logs_include_request_details(monkeypatch, tmp_path):
     assert "GET /health 200" in app_log
     assert "client_ip=" in app_log
     assert re.search(r"GET /health 200 \d+ms", app_log)
-    assert "Application started" in app_log
+    assert "Application starting" in app_log
     assert "Application shutdown" in app_log
 
 
