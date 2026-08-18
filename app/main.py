@@ -39,7 +39,7 @@ request_logger = logging.getLogger("request")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Application started")
+    logger.info("[STARTUP] Application starting")
 
     if settings.llm_provider is None:
         # Deliberately not fail-fast: every non-AI endpoint (auth, courses,
@@ -55,10 +55,13 @@ async def lifespan(app: FastAPI):
         )
 
     try:
+        logger.info("[STARTUP] Connecting to PostgreSQL...")
         validate_database_connection()
+        logger.info("[STARTUP] Database connection successful")
+        logger.info("[STARTUP] FastAPI ready to accept requests")
         yield
     finally:
-        logger.info("Application shutdown")
+        logger.info("[STARTUP] Application shutdown")
 
 
 app = FastAPI(
@@ -177,11 +180,6 @@ def root():
 
 @app.get("/health")
 def health_check():
-    # Redis/worker availability is reported here for operator visibility but
-    # deliberately does NOT affect this endpoint's status or status code —
-    # background-job infrastructure is optional for the app to be "up";
-    # synchronous CRUD works with no worker running at all. See
-    # PHASE_04_BACKGROUND_JOBS.md "Health checks" for the reasoning.
     redis_status = "unreachable"
     try:
         client = redis.from_url(
