@@ -124,7 +124,7 @@ The backend uses centralized structured logging built on Python's standard `logg
 Example log lines:
 
 ```text
-2026-07-13T10:30:45.123Z INFO [request_id=-] [module=app.main] Application started
+2026-07-13T10:30:45.123Z INFO [request_id=-] [module=app.main] [STARTUP] Application starting
 2026-07-13T10:32:01.100Z INFO [request_id=req-001] [module=request] GET /health 200 18ms client_ip=127.0.0.1
 ```
 
