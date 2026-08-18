@@ -8,7 +8,7 @@ Backend is deployed on Railway (ADR-009 superseded — Railway chosen over Rende
 |---|---|
 | Build | Dockerfile (`railway.json` → `build.builder: DOCKERFILE`) |
 | Pre-deploy command | `alembic upgrade head` — runs once per deploy, on a single instance, before it's promoted live. This is the *only* place migrations run in production. |
-| Start command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` — no migration step here, so a crash-looping container never replays migrations, and horizontal replicas never race each other running them. |
+| Start command | `sh -c "uvicorn app.main:app --host 0.0.0.0 --port $PORT"` — no migration step here, so a crash-looping container never replays migrations, and horizontal replicas never race each other running them. The `sh -c` wrapper is required: Railway executes `railway.json`'s `startCommand` directly rather than through a shell, so an unwrapped `--port $PORT` is passed to uvicorn as the literal string `$PORT` instead of being expanded (`Error: Invalid value for '--port': '$PORT' is not a valid integer`, seen live during rollout of this fix). |
 | Health check path | `/health` |
 
 **Do not** add `alembic upgrade head &&` back into the start command, and do not configure a second Railway service (worker/beat) with its own copy of the migration step — either reintroduces concurrent `alembic upgrade head` runs against the same Postgres instance, which is what produced the out-of-dependency-order migration log (interleaved output from two racing processes) that motivated this section.
